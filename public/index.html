@@ -883,11 +883,21 @@ function getUVUrl(url) {
       return UV_BASE + __uv$config.encodeUrl(url);
     }
   } catch {}
-  // Still loading — encode manually with xor
-  const encoded = encodeURIComponent(
-    url.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 2)).join('')
-  );
-  return UV_BASE + encoded;
+  return null; // config not ready yet
+}
+
+function waitForUVConfig(cb, maxWait = 5000) {
+  if (typeof __uv$config !== 'undefined' && __uv$config.encodeUrl) {
+    cb(); return;
+  }
+  const start = Date.now();
+  const poll = setInterval(() => {
+    if (typeof __uv$config !== 'undefined' && __uv$config.encodeUrl) {
+      clearInterval(poll); cb();
+    } else if (Date.now() - start > maxWait) {
+      clearInterval(poll); cb(); // give up waiting, proceed and fail gracefully
+    }
+  }, 50);
 }
 
 // Decode a UV-proxied URL back to the original
@@ -1226,33 +1236,33 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     // ── Forced proxy (user clicked "Try via UV") ──
     if (!UV_BASE) { showErrorPage('noproxy'); return; }
     markDomainAsUVOnly(url);
-    makeIframe(
-      getUVUrl(url),
-      () => onSuccess(true),
-      (r) => showErrorPage(r)
-    );
+    waitForUVConfig(() => {
+      const uvUrl = getUVUrl(url);
+      if (!uvUrl) { showErrorPage('noproxy'); return; }
+      makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
+    });
   } else {
     // ── If we already know this domain needs UV, skip straight to it ──
     if (UV_BASE && isUVOnlyDomain(url)) {
-      makeIframe(
-        getUVUrl(url),
-        () => onSuccess(true),
-        (r) => showErrorPage(r)
-      );
+      waitForUVConfig(() => {
+        const uvUrl = getUVUrl(url);
+        if (!uvUrl) { showErrorPage('noproxy'); return; }
+        makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
+      });
       return;
     }
-
+  
     // ── Pre-check then decide: direct or UV ──
     checkFrameable(url).then(frameable => {
-      if (loadAttempts[tab.id] !== attemptId) return; // Tab navigated away while checking
+      if (loadAttempts[tab.id] !== attemptId) return;
       if (!frameable && UV_BASE) {
-        // Server says blocked — go straight to UV, remember for next time
         markDomainAsUVOnly(url);
-        makeIframe(
-          getUVUrl(url),
-          () => onSuccess(true),
-          (r) => showErrorPage(r)
-        );
+        waitForUVConfig(() => {
+          if (loadAttempts[tab.id] !== attemptId) return;
+          const uvUrl = getUVUrl(url);
+          if (!uvUrl) { showErrorPage('noproxy'); return; }
+          makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
+        });
       } else {
         // Direct load
         makeIframe(
@@ -1260,15 +1270,15 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
           () => onSuccess(false),
           (reason) => {
             if (reason === 'blocked' && UV_BASE) {
-              // Shouldn't happen often since we pre-checked, but handle it anyway
               if (loadAttempts[tab.id] !== attemptId) return;
               markDomainAsUVOnly(url);
               if (isActive()) { startLoading(); hideBadges(); }
-              makeIframe(
-                getUVUrl(url),
-                () => onSuccess(true),
-                (r) => showErrorPage(r)
-              );
+              waitForUVConfig(() => {
+                if (loadAttempts[tab.id] !== attemptId) return;
+                const uvUrl = getUVUrl(url);
+                if (!uvUrl) { showErrorPage('noproxy'); return; }
+                makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
+              });
             } else {
               showErrorPage(reason);
             }
