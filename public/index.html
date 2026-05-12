@@ -1074,21 +1074,20 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       updateUrlBar();
     }
     if (!usedProxy) {
-  console.log('[NAB] fetching finalUrl for:', url);
-  fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(url)}`)
-    .then(r => r.json())
-    .then(data => {
-      console.log('[NAB] check response:', data);
-      if (data.finalUrl && data.finalUrl !== tab.url) {
-        tab.url = data.finalUrl;
-        tab.favicon = getFaviconUrl(data.finalUrl);
-        tab.title = getTabTitleFromIframe(tab.iframeEl) || getDomainTitle(data.finalUrl);
-        if (isActiveTab(tab)) updateUrlBar();
-        renderTabStrip();
-        saveState();
-      }
-    }).catch(e => console.log('[NAB] check failed:', e));
-}
+      fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(url)}`)
+        .then(r => r.json())
+        .then(data => {
+          console.log('[NAB] check response:', data);
+          if (data.finalUrl && data.finalUrl !== tab.url) {
+            tab.url = data.finalUrl;
+            tab.favicon = getFaviconUrl(data.finalUrl);
+            tab.title = getTabTitleFromIframe(tab.iframeEl) || getDomainTitle(data.finalUrl);
+            if (isActiveTab(tab)) updateUrlBar();
+            renderTabStrip();
+            saveState();
+          }
+        }).catch(e => console.log('[NAB] check failed:', e));
+    }
     renderTabStrip();
     renderMobileSheet();
     saveState();
@@ -1096,27 +1095,44 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
 
   // ── Handle navigation within the iframe ──
   function onNavigate(iframe) {
-    console.log('[NAB] onNavigate fired, iframe.src:', iframe.src);
     let currentUrl = null;
     try {
       const u = iframe.contentDocument?.URL;
       if (u && u !== 'about:blank') currentUrl = u;
     } catch {}
-
-    // Scramjet proxied: read decoded URL from the ScramjetFrame object
+  
+    // Scramjet proxied
     if (!currentUrl && tab.scramjetFrame) {
       try {
-        const s = iframe.src;
-        if (s && s !== 'about:blank' && !isProxiedUrl(s)) currentUrl = s;
+        const decoded = tab.scramjetFrame.url?.href;
+        if (decoded && decoded !== 'about:blank') currentUrl = decoded;
       } catch {}
     }
-
-    // Fallback: try legacy decodeProxiedUrl from iframe.src
+  
+    // Fallback: proxy url
     if (!currentUrl && tab.useProxy && isProxiedUrl(iframe.src)) {
       try {
         const decoded = decodeProxiedUrl(iframe.src);
         if (decoded && decoded !== iframe.src) currentUrl = decoded;
       } catch {}
+    }
+  
+    // Cross-origin direct iframe — resolve via server
+    if (!currentUrl && !tab.useProxy) {
+      fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(tab.url)}`)
+        .then(r => r.json())
+        .then(data => {
+          console.log('[NAB] onNavigate check response:', data);
+          if (data.finalUrl && data.finalUrl !== tab.url) {
+            tab.url = data.finalUrl;
+            tab.favicon = getFaviconUrl(data.finalUrl);
+            tab.title = getDomainTitle(data.finalUrl);
+            if (isActiveTab(tab)) updateUrlBar();
+            renderTabStrip();
+            saveState();
+          }
+        }).catch(() => {});
+      return;
     }
 
     if (!currentUrl) {
