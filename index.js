@@ -1,5 +1,6 @@
 import http from "http";
-import { createBareServer } from "@tomphttp/bare-server-node";
+import pkg from '@tomphttp/bare-server-node';
+const { createBareServer } = pkg;
 import { createClient } from "redis";
 import { createReadStream, existsSync } from "fs";
 import { join, extname } from "path";
