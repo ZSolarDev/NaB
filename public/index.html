@@ -711,87 +711,114 @@ input{font-family:'DM Mono',monospace;border:none;outline:none;background:none;c
 
 <script>
 // ═══════════════════════════════════════════
-// CONFIG — set your proxy URL here when ready
+// CONFIG
 // ═══════════════════════════════════════════
-const UV_BASE = 'https://nab-server-dpa4.onrender.com/uv/service/'; // e.g. 'https://your-proxy.com/uv/service/'
-// When UV_BASE is null, fallback is disabled and only direct loads work.
+const SERVER_BASE = 'https://nab-server-dpa4.onrender.com';
+const SCRAM_BASE  = SERVER_BASE + '/scram/service/';
+// Set to null to disable proxy and only use direct loads.
+const PROXY_ENABLED = true;
 
 // ═══════════════════════════════════════════
-// SESSION TOKEN
-// Identifies this browser to the proxy server
-// so each user gets their own isolated cookie jar.
-// Stored in localStorage — never sent anywhere except
-// to your own Meridian proxy as the x-meridian-session header.
+// SCRAMJET + BAREMUX BOOTSTRAP
 // ═══════════════════════════════════════════
-const SESSION_TOKEN = (() => {
-  let token = localStorage.getItem('meridian_session_token');
-  if (!token) {
-    token = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-      (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-    );
-    localStorage.setItem('meridian_session_token', token);
-  }
-  return token;
-})();
+let scramjetController = null;
+let scramjetReady = false;
+const scramjetReadyCallbacks = [];
+
+function onScramjetReady(cb) {
+  if (scramjetReady) { cb(); return; }
+  scramjetReadyCallbacks.push(cb);
+}
+
+if (PROXY_ENABLED && 'serviceWorker' in navigator) {
+  // Load BareMux then Scramjet in order
+  const baremuxScript = document.createElement('script');
+  baremuxScript.src = SERVER_BASE + '/baremux/baremux.js';
+  baremuxScript.onload = () => {
+    const scramjetScript = document.createElement('script');
+    scramjetScript.src = SERVER_BASE + '/scram/scramjet.all.js';
+    scramjetScript.onload = async () => {
+      try {
+        const { ScramjetController } = $scramjetLoadController();
+        scramjetController = new ScramjetController({
+          prefix: '/scram/service/',
+          files: {
+            wasm: SERVER_BASE + '/scram/scramjet.wasm.wasm',
+            all:  SERVER_BASE + '/scram/scramjet.all.js',
+            sync: SERVER_BASE + '/scram/scramjet.sync.js',
+          }
+        });
+        await scramjetController.init();
+
+        // Register service worker
+        await navigator.serviceWorker.register(SERVER_BASE + '/sw.js', {
+          scope: '/',
+          updateViaCache: 'none',
+        });
+        await navigator.serviceWorker.ready;
+
+        // Set bare transport via BareMux
+        const connection = new BareMux.BareMuxConnection(SERVER_BASE + '/baremux/worker.js');
+        await connection.setTransport(SERVER_BASE + '/baremux/index.mjs', [SERVER_BASE + '/bare/']);
+
+        scramjetReady = true;
+        scramjetReadyCallbacks.forEach(cb => cb());
+        scramjetReadyCallbacks.length = 0;
+        console.log('[NAB] Scramjet ready');
+      } catch (e) {
+        console.warn('[NAB] Scramjet init failed:', e);
+      }
+    };
+    scramjetScript.onerror = () => console.warn('[NAB] Failed to load scramjet.all.js');
+    document.head.appendChild(scramjetScript);
+  };
+  baremuxScript.onerror = () => console.warn('[NAB] Failed to load baremux.js');
+  document.head.appendChild(baremuxScript);
+}
 
 // ═══════════════════════════════════════════
-// UV-ONLY DOMAIN MEMORY
+// PROXY-ONLY DOMAIN MEMORY
 // Domains that previously failed direct iframe load
-// are stored here so we skip straight to UV next time.
+// are remembered so we skip straight to proxy next time.
 // ═══════════════════════════════════════════
-const UV_ONLY_DOMAINS = new Set(
-  JSON.parse(localStorage.getItem('meridian_uv_domains') || '[]')
+const PROXY_ONLY_DOMAINS = new Set(
+  JSON.parse(localStorage.getItem('meridian_proxy_domains') || '[]')
 );
 
-function markDomainAsUVOnly(url) {
+function markDomainAsProxyOnly(url) {
   try {
     const hostname = new URL(url).hostname;
-    if (!UV_ONLY_DOMAINS.has(hostname)) {
-      UV_ONLY_DOMAINS.add(hostname);
-      localStorage.setItem('meridian_uv_domains', JSON.stringify([...UV_ONLY_DOMAINS]));
+    if (!PROXY_ONLY_DOMAINS.has(hostname)) {
+      PROXY_ONLY_DOMAINS.add(hostname);
+      localStorage.setItem('meridian_proxy_domains', JSON.stringify([...PROXY_ONLY_DOMAINS]));
     }
   } catch {}
 }
 
-function isUVOnlyDomain(url) {
-  try {
-    return UV_ONLY_DOMAINS.has(new URL(url).hostname);
-  } catch { return false; }
+function isProxyOnlyDomain(url) {
+  try { return PROXY_ONLY_DOMAINS.has(new URL(url).hostname); }
+  catch { return false; }
 }
 
 // ═══════════════════════════════════════════
-// SERVICE WORKER REGISTRATION
-// Registers the UV service worker and passes
-// the session token so it can attach it to
-// every proxied request automatically.
+// PROXY URL HELPERS
 // ═══════════════════════════════════════════
-if (UV_BASE && 'serviceWorker' in navigator) {
-  (async () => {
-    try {
-      // UV_BASE is e.g. 'https://your-proxy.com/uv/service/'
-      // The SW script lives one level up at /uv/uv.sw.js
-      const swUrl = UV_BASE.replace(/\/service\/$/, '/uv.sw.entry.js');
-      const reg = await navigator.serviceWorker.register(swUrl, {
-        scope: UV_BASE.replace(/\/service\/$/, '/'),
-      });
-      // Pass session token to the SW so it can attach it as a header
-      const sendToken = (sw) => sw?.postMessage({ type: 'meridian_session', token: SESSION_TOKEN });
-      if (reg.active) sendToken(reg.active);
-      reg.addEventListener('updatefound', () => {
-        const newSW = reg.installing;
-        newSW?.addEventListener('statechange', () => {
-          if (newSW.state === 'installed') {
-            newSW.postMessage({ type: 'SKIP_WAITING' });
-          }
-        });
-      });
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        sendToken(navigator.serviceWorker.controller);
-      });
-    } catch (e) {
-      console.warn('[Meridian] Service worker registration failed:', e);
-    }
-  })();
+function getProxiedUrl(url) {
+  if (!scramjetController) return null;
+  try {
+    return scramjetController.encodeUrl(url);
+  } catch { return null; }
+}
+
+function decodeProxiedUrl(proxiedUrl) {
+  if (!scramjetController) return proxiedUrl;
+  try {
+    return scramjetController.decodeUrl(proxiedUrl);
+  } catch { return proxiedUrl; }
+}
+
+function isProxiedUrl(url) {
+  return url && url.includes('/scram/service/');
 }
 
 // ═══════════════════════════════════════════
@@ -799,7 +826,6 @@ if (UV_BASE && 'serviceWorker' in navigator) {
 // ═══════════════════════════════════════════
 let activeDesk = 0; // 0 or 1
 
-// Each desktop has its own tabs array and active tab index
 const desktops = [
   { tabs: [], activeTab: -1 },
   { tabs: [], activeTab: -1 }
@@ -839,7 +865,6 @@ function loadState() {
         }
       });
     }
-    // Ensure each desktop has at least one tab
     desktops.forEach((d, di) => {
       if (d.tabs.length === 0) createTab(di, null, 'New Tab', true);
     });
@@ -859,57 +884,7 @@ function normalizeUrl(input) {
   if (/^(https?|ftp):\/\//i.test(input)) return input;
   if (/^localhost|^127\.|^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(input)) return 'http://' + input;
   if (/^[a-z0-9-]+\.[a-z]{2,}/i.test(input) && !input.includes(' ')) return 'https://' + input;
-  // treat as search
   return 'https://www.google.com/search?q=' + encodeURIComponent(input);
-}
-let uvConfigLoaded = false;
-if (UV_BASE) {
-  const serverBase = UV_BASE.replace(/\/uv\/service\/?$/, '');
-  const bundle = document.createElement('script');
-  bundle.src = `${serverBase}/uv/uv.bundle.js`;
-  bundle.onload = () => {
-    const config = document.createElement('script');
-    config.src = `${serverBase}/uv/uv.config.js`;
-    config.onload = () => { uvConfigLoaded = true; };
-    document.head.appendChild(config);
-  };
-  document.head.appendChild(bundle);
-}
-
-function getUVUrl(url) {
-  if (!UV_BASE) return null;
-  try {
-    if (typeof __uv$config !== 'undefined' && __uv$config.encodeUrl) {
-      return UV_BASE + __uv$config.encodeUrl(url);
-    }
-  } catch {}
-  return null; // config not ready yet
-}
-
-function waitForUVConfig(cb, maxWait = 5000) {
-  if (typeof __uv$config !== 'undefined' && __uv$config.encodeUrl) {
-    cb(); return;
-  }
-  const start = Date.now();
-  const poll = setInterval(() => {
-    if (typeof __uv$config !== 'undefined' && __uv$config.encodeUrl) {
-      clearInterval(poll); cb();
-    } else if (Date.now() - start > maxWait) {
-      clearInterval(poll); cb(); // give up waiting, proceed and fail gracefully
-    }
-  }, 50);
-}
-
-// Decode a UV-proxied URL back to the original
-function decodeUVUrl(uvUrl) {
-  if (!UV_BASE || !uvUrl.startsWith(UV_BASE)) return uvUrl;
-  try {
-    return __uv$config.decodeUrl(uvUrl.slice(UV_BASE.length));
-  } catch {
-    // Fallback
-    const encoded = decodeURIComponent(uvUrl.slice(UV_BASE.length));
-    return encoded.split('').map(char => String.fromCharCode(char.charCodeAt(0) ^ 2)).join('');
-  }
 }
 
 function getFaviconUrl(url) {
@@ -933,15 +908,12 @@ function createTab(deskIdx, url, title, activate = true, forceId = null, forcePr
   const id = forceId !== null ? forceId : ++tabIdCounter;
   const desk = desktops[deskIdx];
 
-  // Create page container
   const pageEl = document.createElement('div');
   pageEl.className = 'tab-page';
   pageEl.dataset.tabId = id;
   document.getElementById(`desktop-${deskIdx}`).appendChild(pageEl);
 
-  let iframeEl = null;
-
-  const tab = { id, title: title || 'New Tab', url: url || null, favicon: null, useProxy: forceProxy, iframeEl, pageEl, history: url ? [url] : [], historyIdx: 0 };
+  const tab = { id, title: title || 'New Tab', url: url || null, favicon: null, useProxy: forceProxy, iframeEl: null, pageEl, history: url ? [url] : [], historyIdx: 0 };
   desk.tabs.push(tab);
   const idx = desk.tabs.length - 1;
 
@@ -953,7 +925,6 @@ function createTab(deskIdx, url, title, activate = true, forceId = null, forcePr
 
   renderTabStrip();
   renderMobileSheet();
-
   if (activate) setActiveTab(deskIdx, idx);
   saveState();
   return idx;
@@ -962,7 +933,6 @@ function createTab(deskIdx, url, title, activate = true, forceId = null, forcePr
 function closeTab(deskIdx, tabIdx) {
   const desk = desktops[deskIdx];
   if (desk.tabs.length <= 1) {
-    // Reset to new tab instead of closing
     const tab = desk.tabs[tabIdx];
     tab.url = null;
     tab.title = 'New Tab';
@@ -990,7 +960,6 @@ function closeTab(deskIdx, tabIdx) {
 
 function setActiveTab(deskIdx, tabIdx, silent = false) {
   const desk = desktops[deskIdx];
-  // Deactivate old
   desk.tabs.forEach((t, i) => {
     t.pageEl.classList.toggle('active', i === tabIdx);
   });
@@ -1010,8 +979,6 @@ function getActiveTab(deskIdx) {
 // ═══════════════════════════════════════════
 // LOAD URL
 // ═══════════════════════════════════════════
-
-// Track load attempts per tab to avoid stale callbacks
 const loadAttempts = {};
 
 function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
@@ -1031,7 +998,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
 
   if (isActive()) { startLoading(); hideBadges(); }
 
-  // ── Helper: show error page ──
+  // ── Show error page ──
   function showErrorPage(reason) {
     if (loadAttempts[tab.id] !== attemptId) return;
     tab.pageEl.innerHTML = '';
@@ -1039,48 +1006,41 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     tab.title = 'Error — ' + getDomainTitle(url);
     tab.favicon = null;
 
-    const hasUV = !!UV_BASE;
+    const hasProxy = PROXY_ENABLED;
+    const blockedByHeader = reason === 'blocked';
+
     const div = document.createElement('div');
     div.className = 'err-page';
-
-    const blockedByHeader = reason === 'blocked';
-    const noProxy = reason === 'noproxy';
-
     div.innerHTML = `
       <div class="err-icon">${blockedByHeader ? '🚫' : '⚠️'}</div>
-      <div class="err-title">${blockedByHeader ? 'This site can\'t be framed' : 'Page couldn\'t load'}</div>
+      <div class="err-title">${blockedByHeader ? "This site can't be framed" : "Page couldn't load"}</div>
       <div class="err-sub">${
         blockedByHeader
-          ? (hasUV
-              ? 'This site blocks iframes. You can try loading it through the proxy instead.'
-              : 'This site uses <code>X-Frame-Options</code> or CSP to block embedding. Set up a proxy to bypass this.')
+          ? (hasProxy
+              ? 'This site blocks iframes. Try loading it through the proxy instead.'
+              : 'This site uses X-Frame-Options or CSP to block embedding.')
           : 'Something went wrong loading this page. Check the URL or try again.'
       }</div>
       <div class="err-url">${url}</div>
       <div class="err-actions">
-        ${hasUV && blockedByHeader ? `<button class="err-btn warn-btn" id="err-uv-${tab.id}">⚡ Try via UV Proxy</button>` : ''}
+        ${hasProxy && blockedByHeader ? `<button class="err-btn warn-btn" id="err-proxy-${tab.id}">⚡ Try via Proxy</button>` : ''}
         <button class="err-btn primary" id="err-retry-${tab.id}">↺ Retry direct</button>
-        ${!hasUV && blockedByHeader ? `<div class="err-note">Set <code>UV_BASE</code> at the top of the file to enable proxy fallback for blocked sites.</div>` : ''}
       </div>
     `;
     tab.pageEl.appendChild(div);
 
     if (isActive()) { stopLoading(); hideBadges(); renderTabStrip(); renderMobileSheet(); updateUrlBar(); }
 
-    // Wire buttons
-    const uvBtn = document.getElementById(`err-uv-${tab.id}`);
-    const retryBtn = document.getElementById(`err-retry-${tab.id}`);
-    if (uvBtn) uvBtn.addEventListener('click', () => loadUrlInTab(deskIdx, tabIdx, url, true));
-    if (retryBtn) retryBtn.addEventListener('click', () => loadUrlInTab(deskIdx, tabIdx, url, false));
+    document.getElementById(`err-proxy-${tab.id}`)?.addEventListener('click', () => loadUrlInTab(deskIdx, tabIdx, url, true));
+    document.getElementById(`err-retry-${tab.id}`)?.addEventListener('click', () => loadUrlInTab(deskIdx, tabIdx, url, false));
   }
 
-  // ── Helper: iframe loaded successfully ──
+  // ── Iframe loaded successfully ──
   function onSuccess(usedProxy) {
     if (loadAttempts[tab.id] !== attemptId) return;
     tab.title = getTabTitleFromIframe(tab.iframeEl) || getDomainTitle(url);
     tab.favicon = getFaviconUrl(url);
     tab.useProxy = usedProxy;
-    // Push to history if this is a new navigation (not back/forward)
     if (tab.history[tab.historyIdx] !== url) {
       tab.history = tab.history.slice(0, tab.historyIdx + 1);
       tab.history.push(url);
@@ -1094,52 +1054,41 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     renderTabStrip();
     renderMobileSheet();
     saveState();
-    // Start polling the iframe for redirects after load
-    startUrlPoll(tab, usedProxy);
   }
 
-  // ── Called every time the iframe navigates to a new page after initial load ──
+  // ── Handle navigation within the iframe ──
   function onNavigate(iframe) {
-    console.log('onNavigate fired', iframe.src);
-    console.log('currentUrl resolved to:', currentUrl);
     let currentUrl = null;
-    // Same-origin (localhost dev): can read directly
     try {
       const u = iframe.contentDocument?.URL;
       if (u && u !== 'about:blank') currentUrl = u;
     } catch {}
-    // UV proxied: decode from iframe.src
-    if (!currentUrl && tab.useProxy) {
+
+    // Scramjet proxied: decode from iframe.src
+    if (!currentUrl && tab.useProxy && isProxiedUrl(iframe.src)) {
       try {
-        const decoded = decodeUVUrl(iframe.src);
+        const decoded = decodeProxiedUrl(iframe.src);
         if (decoded && decoded !== iframe.src) currentUrl = decoded;
       } catch {}
     }
-    // Cross-origin direct: we can't read the URL, but we know a navigation happened.
-    // Best we can do is update the title if readable, and mark the url as unknown.
+
     if (!currentUrl) {
       try {
         const t = iframe.contentDocument?.title;
-        if (t && t !== tab.title) {
-          tab.title = t;
-          renderTabStrip();
-          saveState();
-        }
+        if (t && t !== tab.title) { tab.title = t; renderTabStrip(); saveState(); }
       } catch {}
-      // For cross-origin direct iframes we genuinely can't get the URL.
-      // Update the url bar to show we're on a sub-page.
       if (isActiveTab(tab)) updateUrlBar();
       return;
     }
+
     if (currentUrl === tab.url) {
-      // Same URL, just update title
       try {
         const t = iframe.contentDocument?.title;
         if (t) { tab.title = t; renderTabStrip(); saveState(); }
       } catch {}
       return;
     }
-    // New URL — push to history and update everything
+
     tab.url = currentUrl;
     tab.favicon = getFaviconUrl(currentUrl);
     try {
@@ -1159,29 +1108,21 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     saveState();
   }
 
-  function startUrlPoll(tab, usedProxy) {
-    // No-op now — onload handles everything via onNavigate
-    // Kept so call sites don't break
-  }
-
-  // ── Pre-check if a URL is frameable via the server ──
-  // Returns true if safe to iframe directly, false if needs UV
+  // ── Pre-check if a URL is frameable ──
   async function checkFrameable(targetUrl) {
-    if (!UV_BASE) return true; // No server, just try directly
+    if (!PROXY_ENABLED) return true;
     try {
-      const serverBase = UV_BASE.replace(/\/uv\/service\/?$/, '');
-      const res = await fetch(`${serverBase}/check/?url=${encodeURIComponent(targetUrl)}`, {
+      const res = await fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(targetUrl)}`, {
         signal: AbortSignal.timeout(4000)
       });
       const data = await res.json();
       return data.frameable === true;
     } catch {
-      // Server unreachable or timed out — optimistically try direct
       return true;
     }
   }
 
-  // ── Create and load an iframe (frameability already confirmed) ──
+  // ── Create iframe ──
   function makeIframe(src, onLoad, onErr) {
     const iframe = document.createElement('iframe');
     iframe.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts allow-top-navigation-by-user-activation');
@@ -1194,23 +1135,19 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
 
     let settled = false;
 
-    // onload fires on initial load AND on every subsequent navigation inside the iframe.
-    // We use settled to distinguish the first load from later ones.
     iframe.onload = () => {
       if (loadAttempts[tab.id] !== attemptId) return;
       if (!settled) {
         settled = true;
-        // Sanity check: if somehow we ended up on about:blank, treat as error
         try {
           const doc = iframe.contentDocument;
           if (doc && doc.URL === 'about:blank' && !src.startsWith('about:')) {
             onErr('blocked');
             return;
           }
-        } catch { /* cross-origin = definitely loaded fine */ }
+        } catch { /* cross-origin = loaded fine */ }
         onLoad();
       } else {
-        // Subsequent navigation inside the iframe — update URL bar and history
         onNavigate(iframe);
       }
     };
@@ -1221,7 +1158,6 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       onErr('error');
     };
 
-    // Fallback timeout — if nothing fires in 15s, treat as timeout
     setTimeout(() => {
       if (settled || loadAttempts[tab.id] !== attemptId) return;
       settled = true;
@@ -1232,67 +1168,72 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     return iframe;
   }
 
-  if (forceProxy) {
-    // ── Forced proxy (user clicked "Try via UV") ──
-    if (!UV_BASE) { showErrorPage('noproxy'); return; }
-    markDomainAsUVOnly(url);
-    waitForUVConfig(() => {
-      const uvUrl = getUVUrl(url);
-      if (!uvUrl) { showErrorPage('noproxy'); return; }
-      makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
-    });
-  } else {
-    // ── If we already know this domain needs UV, skip straight to it ──
-    if (UV_BASE && isUVOnlyDomain(url)) {
-      waitForUVConfig(() => {
-        const uvUrl = getUVUrl(url);
-        if (!uvUrl) { showErrorPage('noproxy'); return; }
-        makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
-      });
-      return;
-    }
-  
-    // ── Pre-check then decide: direct or UV ──
-    checkFrameable(url).then(frameable => {
+  // ── Load via proxy ──
+  function loadViaProxy() {
+    if (!PROXY_ENABLED) { showErrorPage('noproxy'); return; }
+    markDomainAsProxyOnly(url);
+    onScramjetReady(() => {
       if (loadAttempts[tab.id] !== attemptId) return;
-      if (!frameable && UV_BASE) {
-        markDomainAsUVOnly(url);
-        waitForUVConfig(() => {
-          if (loadAttempts[tab.id] !== attemptId) return;
-          const uvUrl = getUVUrl(url);
-          if (!uvUrl) { showErrorPage('noproxy'); return; }
-          makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
-        });
-      } else {
-        // Direct load
-        makeIframe(
-          url,
-          () => onSuccess(false),
-          (reason) => {
-            if (reason === 'blocked' && UV_BASE) {
-              if (loadAttempts[tab.id] !== attemptId) return;
-              markDomainAsUVOnly(url);
-              if (isActive()) { startLoading(); hideBadges(); }
-              waitForUVConfig(() => {
-                if (loadAttempts[tab.id] !== attemptId) return;
-                const uvUrl = getUVUrl(url);
-                if (!uvUrl) { showErrorPage('noproxy'); return; }
-                makeIframe(uvUrl, () => onSuccess(true), (r) => showErrorPage(r));
-              });
-            } else {
-              showErrorPage(reason);
-            }
-          }
-        );
-      }
+      const proxiedUrl = getProxiedUrl(url);
+      if (!proxiedUrl) { showErrorPage('noproxy'); return; }
+      makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
     });
   }
+
+  if (forceProxy) {
+    loadViaProxy();
+    return;
+  }
+
+  // Skip check if we already know this domain needs proxy
+  if (PROXY_ENABLED && isProxyOnlyDomain(url)) {
+    onScramjetReady(() => {
+      if (loadAttempts[tab.id] !== attemptId) return;
+      const proxiedUrl = getProxiedUrl(url);
+      if (!proxiedUrl) { showErrorPage('noproxy'); return; }
+      makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
+    });
+    return;
+  }
+
+  // Pre-check then decide: direct or proxy
+  checkFrameable(url).then(frameable => {
+    if (loadAttempts[tab.id] !== attemptId) return;
+    if (!frameable && PROXY_ENABLED) {
+      markDomainAsProxyOnly(url);
+      onScramjetReady(() => {
+        if (loadAttempts[tab.id] !== attemptId) return;
+        const proxiedUrl = getProxiedUrl(url);
+        if (!proxiedUrl) { showErrorPage('noproxy'); return; }
+        makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
+      });
+    } else {
+      makeIframe(
+        url,
+        () => onSuccess(false),
+        (reason) => {
+          if (reason === 'blocked' && PROXY_ENABLED) {
+            if (loadAttempts[tab.id] !== attemptId) return;
+            markDomainAsProxyOnly(url);
+            if (isActive()) { startLoading(); hideBadges(); }
+            onScramjetReady(() => {
+              if (loadAttempts[tab.id] !== attemptId) return;
+              const proxiedUrl = getProxiedUrl(url);
+              if (!proxiedUrl) { showErrorPage('noproxy'); return; }
+              makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
+            });
+          } else {
+            showErrorPage(reason);
+          }
+        }
+      );
+    }
+  });
 }
 
 function getTabTitleFromIframe(iframe) {
-  try {
-    return iframe.contentDocument?.title || null;
-  } catch { return null; }
+  try { return iframe.contentDocument?.title || null; }
+  catch { return null; }
 }
 
 function getDomainTitle(url) {
@@ -1303,11 +1244,11 @@ function getDomainTitle(url) {
 // NEW TAB PAGE
 // ═══════════════════════════════════════════
 const shortcuts = [
-  { icon: '🌐', label: 'Google', url: 'https://google.com' },
-  { icon: '📺', label: 'YouTube', url: 'https://youtube.com' },
-  { icon: '🎮', label: 'itch.io', url: 'https://itch.io' },
-  { icon: '📰', label: 'Reddit', url: 'https://reddit.com' },
-  { icon: '🐙', label: 'GitHub', url: 'https://github.com' },
+  { icon: '🌐', label: 'Google',     url: 'https://google.com' },
+  { icon: '📺', label: 'YouTube',    url: 'https://youtube.com' },
+  { icon: '🎮', label: 'itch.io',    url: 'https://itch.io' },
+  { icon: '📰', label: 'Reddit',     url: 'https://reddit.com' },
+  { icon: '🐙', label: 'GitHub',     url: 'https://github.com' },
   { icon: '🎵', label: 'SoundCloud', url: 'https://soundcloud.com' },
 ];
 
@@ -1334,10 +1275,7 @@ function renderNewTabPage(pageEl, deskIdx) {
 
   const inp = nt.querySelector('input');
   const btn = nt.querySelector('button');
-  const go = () => {
-    const url = normalizeUrl(inp.value);
-    if (url) navigateTo(url);
-  };
+  const go = () => { const url = normalizeUrl(inp.value); if (url) navigateTo(url); };
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
   btn.addEventListener('click', go);
   nt.querySelectorAll('.shortcut-item').forEach(el => {
@@ -1354,10 +1292,7 @@ function navigateTo(rawUrl, deskIdx = activeDesk) {
   if (!url) return;
   const desk = desktops[deskIdx];
   const tabIdx = desk.activeTab;
-  if (tabIdx < 0) {
-    createTab(deskIdx, url);
-    return;
-  }
+  if (tabIdx < 0) { createTab(deskIdx, url); return; }
   loadUrlInTab(deskIdx, tabIdx, url);
   if (deskIdx === activeDesk) updateUrlBar();
 }
@@ -1377,10 +1312,8 @@ function updateUrlBar() {
 
   if (tab && tab.url) {
     urlInput.value = tab.url;
-    const ls = getLockState(tab.url);
-    lockEl.textContent = ls.icon;
-    lockEl.className = 'secure'; // simplify: https shows lock
-    if (tab.url.startsWith('http://')) lockEl.className = 'insecure';
+    lockEl.textContent = tab.url.startsWith('http://') ? '⚠️' : '🔒';
+    lockEl.className = tab.url.startsWith('http://') ? 'insecure' : 'secure';
     if (tab.useProxy) showProxyBadge();
     else hideBadges();
   } else {
@@ -1390,7 +1323,6 @@ function updateUrlBar() {
     hideBadges();
   }
 
-  // Color the url wrap border by desk
   urlWrap.className = activeDesk === 0 ? 'd1-focus' : 'd2-focus';
 }
 
@@ -1416,15 +1348,13 @@ function hideBadges() {
 
 let loadTimer = null;
 function startLoading() {
-  const bar = document.getElementById('load-bar');
-  bar.className = 'loading';
+  document.getElementById('load-bar').className = 'loading';
   clearTimeout(loadTimer);
 }
 function stopLoading() {
-  const bar = document.getElementById('load-bar');
-  bar.className = 'done';
+  document.getElementById('load-bar').className = 'done';
   clearTimeout(loadTimer);
-  loadTimer = setTimeout(() => { bar.className = ''; }, 600);
+  loadTimer = setTimeout(() => { document.getElementById('load-bar').className = ''; }, 600);
 }
 
 // ═══════════════════════════════════════════
@@ -1441,7 +1371,6 @@ function renderTabStrip() {
     el.className = `tab ${dClass} ${i === desk.activeTab ? 'active' : ''}`;
     el.dataset.idx = i;
 
-    // Favicon
     const fav = document.createElement('div');
     fav.className = 'tab-favicon';
     if (tab.favicon) {
@@ -1460,22 +1389,15 @@ function renderTabStrip() {
     const close = document.createElement('button');
     close.className = 'tab-close';
     close.innerHTML = '✕';
-    close.addEventListener('click', e => {
-      e.stopPropagation();
-      closeTab(activeDesk, i);
-    });
+    close.addEventListener('click', e => { e.stopPropagation(); closeTab(activeDesk, i); });
 
     el.appendChild(fav);
     el.appendChild(title);
     el.appendChild(close);
-    el.addEventListener('click', () => {
-      setActiveTab(activeDesk, i);
-      updateUrlBar();
-    });
+    el.addEventListener('click', () => { setActiveTab(activeDesk, i); updateUrlBar(); });
     strip.appendChild(el);
   });
 
-  // Scroll active tab into view
   const activeEl = strip.querySelector('.tab.active');
   if (activeEl) activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
@@ -1515,27 +1437,19 @@ function renderMobileSheet() {
       const close = document.createElement('button');
       close.className = 'sheet-tab-close';
       close.innerHTML = '✕';
-      close.addEventListener('click', e => {
-        e.stopPropagation();
-        closeTab(di, ti);
-        renderMobileSheet();
-      });
+      close.addEventListener('click', e => { e.stopPropagation(); closeTab(di, ti); renderMobileSheet(); });
 
       item.appendChild(fav);
       item.appendChild(title);
       item.appendChild(close);
       item.addEventListener('click', () => {
         if (di !== activeDesk) switchDesktop(di);
-        else {
-          setActiveTab(di, ti);
-          updateUrlBar();
-        }
+        else { setActiveTab(di, ti); updateUrlBar(); }
         closeTabsSheet();
       });
       content.appendChild(item);
     });
 
-    // New tab for this desktop
     const newBtn = document.createElement('div');
     newBtn.className = 'sheet-new-tab';
     newBtn.innerHTML = `<span style="font-size:16px">＋</span> New tab on Desktop ${di + 1}`;
@@ -1547,7 +1461,6 @@ function renderMobileSheet() {
     content.appendChild(newBtn);
   });
 
-  // Update mobile desk label
   document.getElementById('mob-desk-label').textContent = `Desk ${activeDesk + 1}`;
 }
 
@@ -1557,8 +1470,6 @@ function renderMobileSheet() {
 function switchDesktop(toIdx, direction = null, silent = false) {
   if (toIdx === activeDesk && !silent) return;
   const fromIdx = activeDesk;
-  const d0 = document.getElementById('desktop-0');
-  const d1 = document.getElementById('desktop-1');
   const pill0 = document.getElementById('pill-d1');
   const pill1 = document.getElementById('pill-d2');
 
@@ -1585,11 +1496,8 @@ function switchDesktop(toIdx, direction = null, silent = false) {
   }
 
   activeDesk = toIdx;
-
   pill0.classList.toggle('active', toIdx === 0);
   pill1.classList.toggle('active', toIdx === 1);
-
-  // Update url bar to new desk's active tab
   updateUrlBar();
   renderTabStrip();
   renderMobileSheet();
@@ -1605,11 +1513,8 @@ function goBack() {
   if (tab.history && tab.historyIdx > 0) {
     tab.historyIdx--;
     const prevUrl = tab.history[tab.historyIdx];
-    const deskIdx = activeDesk;
-    const tabIdx = desktops[activeDesk].activeTab;
-    loadUrlInTab(deskIdx, tabIdx, prevUrl, tab.useProxy);
+    loadUrlInTab(activeDesk, desktops[activeDesk].activeTab, prevUrl, tab.useProxy);
   } else {
-    // Fallback: try iframe native history (same-origin only)
     try { tab.iframeEl?.contentWindow?.history.back(); } catch(e) {}
   }
 }
@@ -1619,9 +1524,7 @@ function goForward() {
   if (tab.history && tab.historyIdx < tab.history.length - 1) {
     tab.historyIdx++;
     const nextUrl = tab.history[tab.historyIdx];
-    const deskIdx = activeDesk;
-    const tabIdx = desktops[activeDesk].activeTab;
-    loadUrlInTab(deskIdx, tabIdx, nextUrl, tab.useProxy);
+    loadUrlInTab(activeDesk, desktops[activeDesk].activeTab, nextUrl, tab.useProxy);
   } else {
     try { tab.iframeEl?.contentWindow?.history.forward(); } catch(e) {}
   }
@@ -1648,47 +1551,30 @@ function closeTabsSheet() {
 // ═══════════════════════════════════════════
 // EVENT LISTENERS
 // ═══════════════════════════════════════════
-
-// URL bar submit
 document.getElementById('url-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const url = normalizeUrl(e.target.value);
     if (url) navigateTo(url);
     e.target.blur();
   }
-  if (e.key === 'Escape') {
-    updateUrlBar();
-    e.target.blur();
-  }
+  if (e.key === 'Escape') { updateUrlBar(); e.target.blur(); }
 });
-document.getElementById('url-input').addEventListener('focus', function() {
-  this.select();
-});
+document.getElementById('url-input').addEventListener('focus', function() { this.select(); });
 
-// New tab buttons
-document.getElementById('new-tab-btn').addEventListener('click', () => {
-  createTab(activeDesk, null, 'New Tab', true);
-});
-document.getElementById('newtab-btn2').addEventListener('click', () => {
-  createTab(activeDesk, null, 'New Tab', true);
-});
+document.getElementById('new-tab-btn').addEventListener('click', () => createTab(activeDesk, null, 'New Tab', true));
+document.getElementById('newtab-btn2').addEventListener('click', () => createTab(activeDesk, null, 'New Tab', true));
 
-// Desktop pills
 document.getElementById('pill-d1').addEventListener('click', () => switchDesktop(0, 'left'));
 document.getElementById('pill-d2').addEventListener('click', () => switchDesktop(1, 'right'));
 
-// Nav buttons
 document.getElementById('back-btn').addEventListener('click', goBack);
 document.getElementById('fwd-btn').addEventListener('click', goForward);
 document.getElementById('refresh-btn').addEventListener('click', refreshTab);
 
-// Mobile buttons
 document.getElementById('mob-back').addEventListener('click', goBack);
 document.getElementById('mob-fwd').addEventListener('click', goForward);
 document.getElementById('mob-tabs').addEventListener('click', openTabsSheet);
-document.getElementById('mob-new').addEventListener('click', () => {
-  createTab(activeDesk, null, 'New Tab', true);
-});
+document.getElementById('mob-new').addEventListener('click', () => createTab(activeDesk, null, 'New Tab', true));
 document.getElementById('mob-desk').addEventListener('click', () => {
   switchDesktop(activeDesk === 0 ? 1 : 0, activeDesk === 0 ? 'right' : 'left');
 });
@@ -1702,37 +1588,10 @@ document.getElementById('tabs-sheet').addEventListener('click', e => {
 // ═══════════════════════════════════════════
 document.addEventListener('keydown', e => {
   const ctrl = e.ctrlKey || e.metaKey;
-
-  // Ctrl+T — new tab
-  if (ctrl && e.key === 't') {
-    e.preventDefault();
-    createTab(activeDesk, null, 'New Tab', true);
-    return;
-  }
-
-  // Ctrl+W — close tab
-  if (ctrl && e.key === 'w') {
-    e.preventDefault();
-    const desk = desktops[activeDesk];
-    closeTab(activeDesk, desk.activeTab);
-    return;
-  }
-
-  // Ctrl+R — refresh
-  if (ctrl && e.key === 'r') {
-    e.preventDefault();
-    refreshTab();
-    return;
-  }
-
-  // Ctrl+L — focus URL bar
-  if (ctrl && e.key === 'l') {
-    e.preventDefault();
-    document.getElementById('url-input').focus();
-    return;
-  }
-
-  // Ctrl+Tab / Ctrl+Shift+Tab — cycle tabs
+  if (ctrl && e.key === 't') { e.preventDefault(); createTab(activeDesk, null, 'New Tab', true); return; }
+  if (ctrl && e.key === 'w') { e.preventDefault(); closeTab(activeDesk, desktops[activeDesk].activeTab); return; }
+  if (ctrl && e.key === 'r') { e.preventDefault(); refreshTab(); return; }
+  if (ctrl && e.key === 'l') { e.preventDefault(); document.getElementById('url-input').focus(); return; }
   if (ctrl && e.key === 'Tab') {
     e.preventDefault();
     const desk = desktops[activeDesk];
@@ -1743,50 +1602,20 @@ document.addEventListener('keydown', e => {
     updateUrlBar();
     return;
   }
-
-  // Alt+Left — back
-  if (e.altKey && e.key === 'ArrowLeft' && !e.ctrlKey && !e.shiftKey) {
-    e.preventDefault();
-    goBack();
-    return;
-  }
-
-  // Alt+Right — forward
-  if (e.altKey && e.key === 'ArrowRight' && !e.ctrlKey && !e.shiftKey) {
-    e.preventDefault();
-    goForward();
-    return;
-  }
-
-  // Ctrl+Alt+Shift+Left — switch to desktop 1
-  if (ctrl && e.altKey && e.shiftKey && e.key === 'ArrowLeft') {
-    e.preventDefault();
-    switchDesktop(0, 'left');
-    return;
-  }
-
-  // Ctrl+Alt+Shift+Right — switch to desktop 2
-  if (ctrl && e.altKey && e.shiftKey && e.key === 'ArrowRight') {
-    e.preventDefault();
-    switchDesktop(1, 'right');
-    return;
-  }
-
-  // Ctrl+1..9 — switch to tab by number
+  if (e.altKey && e.key === 'ArrowLeft' && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); goBack(); return; }
+  if (e.altKey && e.key === 'ArrowRight' && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); goForward(); return; }
+  if (ctrl && e.altKey && e.shiftKey && e.key === 'ArrowLeft') { e.preventDefault(); switchDesktop(0, 'left'); return; }
+  if (ctrl && e.altKey && e.shiftKey && e.key === 'ArrowRight') { e.preventDefault(); switchDesktop(1, 'right'); return; }
   if (ctrl && e.key >= '1' && e.key <= '9') {
     e.preventDefault();
-    const desk = desktops[activeDesk];
     const idx = parseInt(e.key) - 1;
-    if (idx < desk.tabs.length) {
-      setActiveTab(activeDesk, idx);
-      updateUrlBar();
-    }
+    if (idx < desktops[activeDesk].tabs.length) { setActiveTab(activeDesk, idx); updateUrlBar(); }
     return;
   }
 });
 
 // ═══════════════════════════════════════════
-// TOUCH GESTURES (4-finger swipe / touch swipe for desktop switch)
+// TOUCH GESTURES
 // ═══════════════════════════════════════════
 let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchCount = 0;
 
@@ -1803,24 +1632,17 @@ document.addEventListener('touchend', e => {
   const elapsed = Date.now() - touchStartTime;
   const dx = (e.changedTouches[0]?.clientX || touchStartX) - touchStartX;
   const dy = (e.changedTouches[0]?.clientY || touchStartY) - touchStartY;
-  const absDx = Math.abs(dx);
-  const absDy = Math.abs(dy);
-
-  // 4-finger swipe OR 3-finger fast swipe
-  if ((touchCount >= 3) && absDx > 60 && absDx > absDy * 1.5 && elapsed < 400) {
+  if (touchCount >= 3 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && elapsed < 400) {
     if (dx < 0) switchDesktop(1, 'right');
     else switchDesktop(0, 'left');
   }
 }, { passive: true });
 
 // ═══════════════════════════════════════════
-// INTERCEPT LINKS that try to open in new tabs
-// (target=_blank from within iframes — best effort)
+// NEW TAB INTERCEPT
 // ═══════════════════════════════════════════
 window.addEventListener('message', e => {
-  if (e.data && e.data.type === 'meridian_newtab') {
-    openInNewTab(e.data.url);
-  }
+  if (e.data && e.data.type === 'meridian_newtab') openInNewTab(e.data.url);
 });
 
 // ═══════════════════════════════════════════
@@ -1836,7 +1658,6 @@ function applyTheme(theme) {
 
 const savedTheme = localStorage.getItem('nab_theme') || 'dark';
 applyTheme(savedTheme);
-
 document.getElementById('theme-dark').addEventListener('click', () => applyTheme('dark'));
 document.getElementById('theme-light').addEventListener('click', () => applyTheme('light'));
 

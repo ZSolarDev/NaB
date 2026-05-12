@@ -8,8 +8,9 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
-    "@titaniumnetwork-dev/ultraviolet": "1.0.8",
-    "@tomphttp/bare-server-node": "^1.0.0",
+    "@mercuryworkshop/bare-mux": "^2.1.9",
+    "@mercuryworkshop/scramjet": "^1.1.0",
+    "@tomphttp/bare-server-node": "^2.0.0",
     "redis": "^4.6.0"
   },
   "engines": {
