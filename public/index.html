@@ -641,7 +641,7 @@ input{font-family:'DM Mono',monospace;border:none;outline:none;background:none;c
       <!-- Proxy badge -->
       <div id="proxy-badge">
         <svg viewBox="0 0 10 10" fill="none"><path d="M5 1L9 3V7L5 9L1 7V3L5 1Z" stroke="currentColor" stroke-width="1.2"/></svg>
-        UV
+        SJ
       </div>
       <!-- Direct badge -->
       <div id="direct-badge">✓ Direct</div>
@@ -904,7 +904,7 @@ function getLockState(url) {
 // ═══════════════════════════════════════════
 // TAB MANAGEMENT
 // ═══════════════════════════════════════════
-function createTab(deskIdx, url, title, activate = true, forceId = null, forceProxy = true) {
+function createTab(deskIdx, url, title, activate = true, forceId = null, forceProxy = false) {
   const id = forceId !== null ? forceId : ++tabIdCounter;
   const desk = desktops[deskIdx];
 
@@ -1109,6 +1109,9 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
   }
 
   // ── Pre-check if a URL is frameable ──
+  // We only block on X-Frame-Options: deny/sameorigin.
+  // We skip CSP frame-ancestors checks here — too many false positives.
+  // The iframe will fall back to proxy on its own if it actually gets blocked.
   async function checkFrameable(targetUrl) {
     if (!PROXY_ENABLED) return true;
     try {
@@ -1116,7 +1119,9 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
         signal: AbortSignal.timeout(4000)
       });
       const data = await res.json();
-      return data.frameable === true;
+      // Only trust XFO, not CSP (too many false positives with CSP parsing)
+      if (data.xfo && /deny|sameorigin/i.test(data.xfo)) return false;
+      return true;
     } catch {
       return true;
     }
@@ -1139,13 +1144,17 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       if (loadAttempts[tab.id] !== attemptId) return;
       if (!settled) {
         settled = true;
-        try {
-          const doc = iframe.contentDocument;
-          if (doc && doc.URL === 'about:blank' && !src.startsWith('about:')) {
-            onErr('blocked');
-            return;
-          }
-        } catch { /* cross-origin = loaded fine */ }
+        // Scramjet proxy URLs are always cross-origin from the SW — skip blank check
+        const isProxy = src.includes('/scram/service/');
+        if (!isProxy) {
+          try {
+            const doc = iframe.contentDocument;
+            if (doc && doc.URL === 'about:blank' && !src.startsWith('about:')) {
+              onErr('blocked');
+              return;
+            }
+          } catch { /* cross-origin = loaded fine */ }
+        }
         onLoad();
       } else {
         onNavigate(iframe);
@@ -1161,8 +1170,15 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     setTimeout(() => {
       if (settled || loadAttempts[tab.id] !== attemptId) return;
       settled = true;
+      // For proxy loads, a timeout means SW didn't respond — show error
+      // For direct loads, treat as blocked and fall through to proxy
       onErr('timeout');
-    }, 15000);
+    }, 10000);
+
+    // Safety: always stop the spinner after 12s no matter what
+    setTimeout(() => {
+      if (isActive()) stopLoading();
+    }, 12000);
 
     iframe.src = src;
     return iframe;
