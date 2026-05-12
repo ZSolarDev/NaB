@@ -8,6 +8,7 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
+    "@titaniumnetwork-dev/ultraviolet": "^3.2.10",
     "@tomphttp/bare-server-node": "^2.0.0",
     "redis": "^4.6.0"
   },
