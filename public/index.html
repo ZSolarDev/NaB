@@ -711,6 +711,27 @@ input{font-family:'DM Mono',monospace;border:none;outline:none;background:none;c
 
 <script>
 // ═══════════════════════════════════════════
+// SHAREDWORKER POLYFILL (mobile browsers)
+// ═══════════════════════════════════════════
+if (typeof SharedWorker === 'undefined') {
+  window.SharedWorker = class SharedWorker extends EventTarget {
+    constructor(url) {
+      super();
+      const worker = new Worker(url);
+      this.port = {
+        onmessage: null,
+        postMessage: (msg, transfer) => worker.postMessage(msg, transfer),
+        start: () => {},
+      };
+      worker.onmessage = (e) => {
+        if (this.port.onmessage) this.port.onmessage(e);
+      };
+      worker.onerror = (e) => this.dispatchEvent(new ErrorEvent('error', e));
+    }
+  };
+}
+
+// ═══════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════
 const SERVER_BASE = 'https://nab-server-dpa4.onrender.com';
@@ -773,7 +794,7 @@ if (PROXY_ENABLED && 'serviceWorker' in navigator) {
         await navigator.serviceWorker.ready;
         _sjDebug('SW ready, setting transport...');
 
-        const connection = new BareMux.BareMuxConnection('/baremux/index.mjs');
+        const connection = new BareMux.BareMuxConnection(SERVER_BASE + '/baremux/worker.js');
         await connection.setTransport('/epoxy/index.mjs', [{ wisp: 'wss://nab-server-dpa4.onrender.com/wisp/' }]);
 
         scramjetReady = true;
