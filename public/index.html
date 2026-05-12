@@ -774,7 +774,7 @@ if (PROXY_ENABLED && 'serviceWorker' in navigator) {
         _sjDebug('SW ready, setting transport...');
 
         const connection = new BareMux.BareMuxConnection(SERVER_BASE + '/baremux/worker.js');
-        await connection.setTransport(SERVER_BASE + '/baremux/index.mjs', [SERVER_BASE + '/bare/']);
+        await connection.setTransport('/epoxy/index.mjs', [{ wisp: 'wss://nab-server-dpa4.onrender.com/wisp/' }]);
 
         scramjetReady = true;
         scramjetReadyCallbacks.forEach(cb => cb());
