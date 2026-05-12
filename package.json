@@ -1,0 +1,17 @@
+{
+  "name": "meridian-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "@tomphttp/bare-server-node": "^2.0.0",
+    "redis": "^4.6.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

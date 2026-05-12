@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
+  iframe {
+    width: 100%; height: 100%;
+    border: none;
+    display: block;
+  }
+</style>
+</head>
+<body>
+<iframe id="inner" 
+  sandbox="allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts allow-top-navigation-by-user-activation"
+  allowfullscreen
+  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+></iframe>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const targetUrl = params.get('url');
+  const inner = document.getElementById('inner');
+
+  if (!targetUrl) {
+    document.body.innerHTML = '<p style="padding:20px;font-family:sans-serif;color:#666">No URL provided.</p>';
+  } else {
+    // Tell NAB we're starting to load
+    window.parent.postMessage({ type: 'nab_relay', event: 'loading', url: targetUrl }, '*');
+
+    inner.onload = () => {
+      // Try to read the inner iframe's current URL.
+      // This works because relay.html is same-origin with the server,
+      // but the inner iframe is cross-origin — so we still can't read it directly.
+      // Instead, we read inner.src which the browser DOES update on navigations
+      // that happen via normal link clicks (not JS pushState).
+      let currentUrl = null;
+
+      // Method 1: inner.src — browser updates this on full navigations
+      if (inner.src && inner.src !== 'about:blank') {
+        currentUrl = inner.src;
+      }
+
+      // Method 2: try contentDocument (works if inner page happens to be same-origin as relay)
+      try {
+        const u = inner.contentDocument?.URL;
+        if (u && u !== 'about:blank') currentUrl = u;
+      } catch {}
+
+      if (currentUrl) {
+        window.parent.postMessage({
+          type: 'nab_relay',
+          event: 'navigate',
+          url: currentUrl,
+        }, '*');
+      }
+
+      // Also try to grab the title
+      let title = null;
+      try { title = inner.contentDocument?.title || null; } catch {}
+      if (title) {
+        window.parent.postMessage({
+          type: 'nab_relay',
+          event: 'title',
+          title,
+          url: currentUrl,
+        }, '*');
+      }
+    };
+
+    inner.onerror = () => {
+      window.parent.postMessage({ type: 'nab_relay', event: 'error' }, '*');
+    };
+
+    inner.src = targetUrl;
+  }
+</script>
+</body>
+</html>
