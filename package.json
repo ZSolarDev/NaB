@@ -8,7 +8,7 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
-    "@mercuryworkshop/epoxy-transport": "^3.0.1",
+    "@mercuryworkshop/epoxy-transport": "^2.1.28",
     "@mercuryworkshop/wisp-js": "^0.4.0",
     "@mercuryworkshop/bare-mux": "^2.1.9",
     "@mercuryworkshop/scramjet": "^1.1.0",
