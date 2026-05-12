@@ -765,8 +765,15 @@ if (PROXY_ENABLED && 'serviceWorker' in navigator) {
         scramjetReadyCallbacks.forEach(cb => cb());
         scramjetReadyCallbacks.length = 0;
         console.log('[NAB] Scramjet ready');
+        document.body.insertAdjacentHTML('beforeend',
+          `<div id="_sj_debug" style="position:fixed;bottom:0;left:0;right:0;background:#1a7a1a;color:#fff;padding:8px 12px;z-index:99999;font-family:monospace;font-size:12px">SJ READY</div>`
+        );
+        setTimeout(() => document.getElementById('_sj_debug')?.remove(), 4000);
       } catch (e) {
         console.warn('[NAB] Scramjet init failed:', e);
+        document.body.insertAdjacentHTML('beforeend',
+          `<div id="_sj_debug" style="position:fixed;bottom:0;left:0;right:0;background:#b00;color:#fff;padding:8px 12px;z-index:99999;font-family:monospace;font-size:12px">SJ INIT FAILED: ${e?.message || e}</div>`
+        );
       }
     };
     scramjetScript.onerror = () => console.warn('[NAB] Failed to load scramjet.all.js');
