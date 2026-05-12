@@ -1058,6 +1058,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
 
   // ── Iframe loaded successfully ──
   function onSuccess(usedProxy) {
+    console.log('[NAB] onSuccess fired, usedProxy:', usedProxy, 'url:', url, 'isActive:', isActive());
     if (loadAttempts[tab.id] !== attemptId) return;
     tab.title = getTabTitleFromIframe(tab.iframeEl) || getDomainTitle(url);
     tab.favicon = getFaviconUrl(url);
@@ -1079,6 +1080,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
 
   // ── Handle navigation within the iframe ──
   function onNavigate(iframe) {
+    console.log('[NAB] onNavigate fired, iframe.src:', iframe.src);
     let currentUrl = null;
     try {
       const u = iframe.contentDocument?.URL;
@@ -1117,6 +1119,8 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       } catch {}
       return;
     }
+
+    console.log('[NAB] onNavigate currentUrl resolved to:', currentUrl);
 
     tab.url = currentUrl;
     tab.favicon = getFaviconUrl(currentUrl);
@@ -1170,6 +1174,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     let settled = false;
 
     iframe.onload = () => {
+      console.log('[NAB] iframe onload fired, settled:', settled, 'src:', iframe.src);
       if (loadAttempts[tab.id] !== attemptId) return;
       if (!settled) {
         settled = true;
