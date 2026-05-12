@@ -834,7 +834,7 @@ const desktops = [
 let tabIdCounter = parseInt(localStorage.getItem('meridian_tabIdCounter') || '0');
 
 // Tab structure:
-// { id, title, url, favicon, useProxy, iframeEl, pageEl, history[], historyIdx }
+// { id, title, url, favicon, useProxy, iframeEl, scramjetFrame, pageEl, history[], historyIdx }
 
 // ═══════════════════════════════════════════
 // PERSISTENCE
@@ -913,7 +913,7 @@ function createTab(deskIdx, url, title, activate = true, forceId = null, forcePr
   pageEl.dataset.tabId = id;
   document.getElementById(`desktop-${deskIdx}`).appendChild(pageEl);
 
-  const tab = { id, title: title || 'New Tab', url: url || null, favicon: null, useProxy: forceProxy, iframeEl: null, pageEl, history: url ? [url] : [], historyIdx: 0 };
+  const tab = { id, title: title || 'New Tab', url: url || null, favicon: null, useProxy: forceProxy, iframeEl: null, scramjetFrame: null, pageEl, history: url ? [url] : [], historyIdx: 0 };
   desk.tabs.push(tab);
   const idx = desk.tabs.length - 1;
 
@@ -991,6 +991,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
 
   tab.url = url;
   tab.useProxy = false;
+  tab.scramjetFrame = null;
   tab.pageEl.innerHTML = '';
 
   const isActive = () => deskIdx === activeDesk && desk.activeTab === tabIdx;
@@ -1064,7 +1065,15 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       if (u && u !== 'about:blank') currentUrl = u;
     } catch {}
 
-    // Scramjet proxied: decode from iframe.src
+    // Scramjet proxied: read decoded URL from the ScramjetFrame object
+    if (!currentUrl && tab.scramjetFrame) {
+      try {
+        const decoded = tab.scramjetFrame.url?.href;
+        if (decoded && decoded !== 'about:blank') currentUrl = decoded;
+      } catch {}
+    }
+
+    // Fallback: try legacy decodeProxiedUrl from iframe.src
     if (!currentUrl && tab.useProxy && isProxiedUrl(iframe.src)) {
       try {
         const decoded = decodeProxiedUrl(iframe.src);
@@ -1184,15 +1193,88 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     return iframe;
   }
 
-  // ── Load via proxy ──
+  // ── Load via proxy using Scramjet Frame API ──
   function loadViaProxy() {
     if (!PROXY_ENABLED) { showErrorPage('noproxy'); return; }
     markDomainAsProxyOnly(url);
     onScramjetReady(() => {
       if (loadAttempts[tab.id] !== attemptId) return;
-      const proxiedUrl = getProxiedUrl(url);
-      if (!proxiedUrl) { showErrorPage('noproxy'); return; }
-      makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
+
+      // Create a plain iframe for Scramjet to control
+      const iframe = document.createElement('iframe');
+      iframe.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts allow-top-navigation-by-user-activation');
+      iframe.setAttribute('allowfullscreen', '');
+      iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+      iframe.style.cssText = 'width:100%;height:100%;border:none;background:#fff;';
+      tab.iframeEl = iframe;
+      tab.pageEl.innerHTML = '';
+      tab.pageEl.appendChild(iframe);
+
+      // Wrap the iframe with the Scramjet Frame API
+      const sjFrame = scramjetController.createFrame(iframe);
+      tab.scramjetFrame = sjFrame;
+
+      let settled = false;
+      const proxyTimeout = setTimeout(() => {
+        if (settled || loadAttempts[tab.id] !== attemptId) return;
+        settled = true;
+        showErrorPage('timeout');
+      }, 10000);
+      setTimeout(() => { if (isActive()) stopLoading(); }, 12000);
+
+      // Listen for proxified URL changes (in-page navigation)
+      sjFrame.addEventListener('urlchange', (e) => {
+        if (loadAttempts[tab.id] !== attemptId) return;
+        const newUrl = e.url || (sjFrame.url?.href);
+        if (!newUrl || newUrl === 'about:blank') return;
+
+        if (!settled) {
+          // First urlchange = page loaded successfully
+          settled = true;
+          clearTimeout(proxyTimeout);
+          onSuccess(true);
+        } else {
+          // Subsequent urlchange = in-page navigation
+          if (newUrl === tab.url) return;
+          tab.url = newUrl;
+          tab.favicon = getFaviconUrl(newUrl);
+          tab.title = getDomainTitle(newUrl);
+          if (tab.history[tab.historyIdx] !== newUrl) {
+            tab.history = tab.history.slice(0, tab.historyIdx + 1);
+            tab.history.push(newUrl);
+            tab.historyIdx = tab.history.length - 1;
+          }
+          if (isActiveTab(tab)) updateUrlBar();
+          renderTabStrip();
+          renderMobileSheet();
+          saveState();
+        }
+      });
+
+      // Also handle iframe load events for title/favicon updates after navigation
+      iframe.addEventListener('load', () => {
+        if (loadAttempts[tab.id] !== attemptId) return;
+        if (!settled) {
+          // If no urlchange fired yet but iframe loaded (e.g. same-origin proxy page)
+          settled = true;
+          clearTimeout(proxyTimeout);
+          onSuccess(true);
+        } else {
+          // In-page load: update title
+          try {
+            const t = iframe.contentDocument?.title;
+            if (t && t !== tab.title) { tab.title = t; renderTabStrip(); saveState(); }
+          } catch {}
+          if (isActiveTab(tab)) updateUrlBar();
+        }
+      });
+
+      // Navigate the frame to the target URL
+      try {
+        sjFrame.go(url);
+      } catch (e) {
+        if (!settled) { settled = true; clearTimeout(proxyTimeout); showErrorPage('error'); }
+      }
     });
   }
 
@@ -1203,12 +1285,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
 
   // Skip check if we already know this domain needs proxy
   if (PROXY_ENABLED && isProxyOnlyDomain(url)) {
-    onScramjetReady(() => {
-      if (loadAttempts[tab.id] !== attemptId) return;
-      const proxiedUrl = getProxiedUrl(url);
-      if (!proxiedUrl) { showErrorPage('noproxy'); return; }
-      makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
-    });
+    loadViaProxy();
     return;
   }
 
@@ -1217,12 +1294,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     if (loadAttempts[tab.id] !== attemptId) return;
     if (!frameable && PROXY_ENABLED) {
       markDomainAsProxyOnly(url);
-      onScramjetReady(() => {
-        if (loadAttempts[tab.id] !== attemptId) return;
-        const proxiedUrl = getProxiedUrl(url);
-        if (!proxiedUrl) { showErrorPage('noproxy'); return; }
-        makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
-      });
+      loadViaProxy();
     } else {
       makeIframe(
         url,
@@ -1232,12 +1304,7 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
             if (loadAttempts[tab.id] !== attemptId) return;
             markDomainAsProxyOnly(url);
             if (isActive()) { startLoading(); hideBadges(); }
-            onScramjetReady(() => {
-              if (loadAttempts[tab.id] !== attemptId) return;
-              const proxiedUrl = getProxiedUrl(url);
-              if (!proxiedUrl) { showErrorPage('noproxy'); return; }
-              makeIframe(proxiedUrl, () => onSuccess(true), (r) => showErrorPage(r));
-            });
+            loadViaProxy();
           } else {
             showErrorPage(reason);
           }
@@ -1526,6 +1593,11 @@ function switchDesktop(toIdx, direction = null, silent = false) {
 function goBack() {
   const tab = getActiveTab(activeDesk);
   if (!tab) return;
+  // Use Scramjet Frame API for proxy tabs
+  if (tab.scramjetFrame) {
+    tab.scramjetFrame.back();
+    return;
+  }
   if (tab.history && tab.historyIdx > 0) {
     tab.historyIdx--;
     const prevUrl = tab.history[tab.historyIdx];
@@ -1537,6 +1609,11 @@ function goBack() {
 function goForward() {
   const tab = getActiveTab(activeDesk);
   if (!tab) return;
+  // Use Scramjet Frame API for proxy tabs
+  if (tab.scramjetFrame) {
+    tab.scramjetFrame.forward();
+    return;
+  }
   if (tab.history && tab.historyIdx < tab.history.length - 1) {
     tab.historyIdx++;
     const nextUrl = tab.history[tab.historyIdx];
@@ -1547,7 +1624,14 @@ function goForward() {
 }
 function refreshTab() {
   const tab = getActiveTab(activeDesk);
-  if (tab && tab.iframeEl && tab.url) {
+  if (!tab || !tab.url) return;
+  // Use Scramjet Frame API for proxy tabs
+  if (tab.scramjetFrame) {
+    startLoading();
+    tab.scramjetFrame.reload();
+    return;
+  }
+  if (tab.iframeEl) {
     startLoading();
     tab.iframeEl.src = tab.iframeEl.src;
   }
