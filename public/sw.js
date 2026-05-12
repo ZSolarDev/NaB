@@ -16,3 +16,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(clients.claim()); // Force the SW to take control immediately
+});
