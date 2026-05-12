@@ -1,0 +1,1789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NAB</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Google+Sans:wght@400;500;600;700&family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   VARIABLES & RESET
+═══════════════════════════════════════════ */
+:root {
+  /* Google Chrome-like accent colors */
+  --d1:        #1a73e8;
+  --d1-dim:    #8ab4f8;
+  --d2:        #34a853;
+  --d2-dim:    #81c995;
+  --danger:    #ea4335;
+  --warn:      #fbbc04;
+  --radius:    8px;
+  --tab-h:     34px;
+  --bar-h:     46px;
+}
+
+/* ── DARK MODE (default) ── */
+:root, body.dark {
+  --bg:        #202124;
+  --surface:   #292a2d;
+  --surface2:  #35363a;
+  --surface3:  #3c3d41;
+  --border:    #3c3d41;
+  --border2:   #5f6368;
+  --text:      #e8eaed;
+  --text2:     #9aa0a6;
+  --text3:     #5f6368;
+  --input-bg:  #35363a;
+  --tab-active-bg: #35363a;
+  --newtab-bg: #202124;
+  --search-border: #5f6368;
+}
+
+/* ── LIGHT MODE ── */
+body.light {
+  --bg:        #f1f3f4;
+  --surface:   #ffffff;
+  --surface2:  #f1f3f4;
+  --surface3:  #e8eaed;
+  --border:    #dadce0;
+  --border2:   #bdc1c6;
+  --text:      #202124;
+  --text2:     #5f6368;
+  --text3:     #9aa0a6;
+  --input-bg:  #f1f3f4;
+  --tab-active-bg: #ffffff;
+  --newtab-bg: #ffffff;
+  --search-border: #dfe1e5;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Roboto',sans-serif;
+  display:flex;
+  flex-direction:column;
+  height:100dvh;
+}
+button{cursor:pointer;border:none;background:none;font-family:inherit;color:inherit;}
+input{font-family:'DM Mono',monospace;border:none;outline:none;background:none;color:inherit;}
+
+/* ═══════════════════════════════════════════
+   CHROME (top bar area)
+═══════════════════════════════════════════ */
+#chrome{
+  flex-shrink:0;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  z-index:100;
+  user-select:none;
+}
+
+/* ── TAB ROW ── */
+#tab-row{
+  display:flex;
+  align-items:flex-end;
+  height:var(--tab-h);
+  padding:4px 6px 0;
+  gap:3px;
+  overflow:hidden;
+}
+.tab-strip{
+  display:flex;
+  flex:1;
+  gap:2px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:none;
+  align-items:flex-end;
+  padding-bottom:0;
+}
+.tab-strip::-webkit-scrollbar{display:none;}
+
+.tab{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:0 10px 0 12px;
+  height:28px;
+  background:transparent;
+  border:none;
+  border-radius:8px 8px 0 0;
+  font-size:12px;
+  font-weight:400;
+  font-family:'Roboto',sans-serif;
+  color:var(--text2);
+  cursor:pointer;
+  min-width:80px;
+  max-width:180px;
+  transition:background 0.1s, color 0.1s;
+  flex-shrink:0;
+  position:relative;
+}
+.tab:hover{background:var(--surface2);color:var(--text);}
+.tab.active{
+  background:var(--tab-active-bg);
+  color:var(--text);
+  box-shadow:0 1px 0 var(--tab-active-bg);
+}
+.tab-favicon{
+  width:14px;height:14px;flex-shrink:0;
+  background:var(--surface3);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;overflow:hidden;
+}
+.tab-favicon img{width:14px;height:14px;object-fit:contain;}
+.tab-title{
+  flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-size:12px;font-family:'Roboto',sans-serif;
+}
+.tab-close{
+  width:16px;height:16px;flex-shrink:0;
+  border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10px;color:var(--text3);
+  transition:background 0.12s,color 0.12s;
+}
+.tab-close:hover{background:var(--surface2);color:var(--danger);}
+
+.tab-add{
+  width:26px;height:26px;flex-shrink:0;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:6px;display:flex;align-items:center;justify-content:center;
+  font-size:15px;color:var(--text3);transition:all 0.15s;
+  align-self:flex-end;margin-bottom:0;
+}
+.tab-add:hover{background:var(--surface3);color:var(--text);}
+
+/* ── URL BAR ROW ── */
+#bar-row{
+  display:flex;
+  align-items:center;
+  height:var(--bar-h);
+  padding:0 8px;
+  gap:6px;
+}
+
+/* Desktop switcher pills */
+.desk-pills{
+  display:flex;gap:4px;flex-shrink:0;
+}
+.desk-pill{
+  display:flex;align-items:center;gap:5px;
+  padding:0 10px;height:28px;
+  border-radius:20px;
+  border:1.5px solid transparent;
+  font-size:12px;font-weight:500;
+  font-family:'Roboto',sans-serif;
+  transition:all 0.18s;cursor:pointer;
+  letter-spacing:0.01em;
+}
+.desk-pill.d1{border-color:var(--border);color:var(--text2);}
+.desk-pill.d1.active{background:rgba(26,115,232,0.12);border-color:var(--d1);color:var(--d1);}
+.desk-pill.d2{border-color:var(--border);color:var(--text2);}
+.desk-pill.d2.active{background:rgba(52,168,83,0.1);border-color:var(--d2);color:var(--d2);}
+.desk-pill-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+/* Nav buttons */
+.nav-btn{
+  width:30px;height:30px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text2);font-size:14px;
+  transition:all 0.14s;flex-shrink:0;
+}
+.nav-btn:hover{background:var(--surface2);color:var(--text);}
+.nav-btn:disabled{color:var(--text3);cursor:default;}
+.nav-btn:disabled:hover{background:none;}
+
+/* URL input wrapper */
+#url-wrap{
+  flex:1;
+  display:flex;align-items:center;gap:8px;
+  background:var(--input-bg);
+  border:1px solid var(--search-border);
+  border-radius:24px;
+  padding:0 16px;
+  height:34px;
+  transition:border-color 0.15s, box-shadow 0.15s;
+  position:relative;
+  overflow:hidden;
+}
+#url-wrap:focus-within{
+  border-color:var(--d1);
+  box-shadow:0 0 0 2px rgba(26,115,232,0.15);
+}
+
+#lock-icon{font-size:12px;color:var(--text3);flex-shrink:0;}
+#lock-icon.secure{color:var(--text3);}
+#lock-icon.insecure{color:var(--warn);}
+
+#url-input{
+  flex:1;font-size:13px;font-family:'Roboto',monospace;
+  color:var(--text);caret-color:var(--d1);
+  letter-spacing:0em;
+  min-width:0;
+}
+
+/* Theme toggle pill */
+#theme-pill{
+  display:flex;
+  align-items:center;
+  background:var(--surface2);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:2px;
+  gap:1px;
+  flex-shrink:0;
+}
+.theme-opt{
+  width:26px;height:22px;
+  border-radius:16px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;
+  color:var(--text3);
+  transition:all 0.15s;
+  cursor:pointer;
+}
+.theme-opt.active{
+  background:var(--surface);
+  color:var(--text);
+  box-shadow:0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* Proxy badge */
+#proxy-badge{
+  display:none;
+  align-items:center;gap:4px;
+  padding:2px 8px;
+  border-radius:20px;
+  background:rgba(255,184,48,0.12);
+  border:1px solid rgba(255,184,48,0.3);
+  color:var(--warn);
+  font-size:10.5px;font-weight:600;
+  letter-spacing:0.04em;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+#proxy-badge.show{display:flex;}
+#proxy-badge svg{width:10px;height:10px;}
+
+/* Direct badge */
+#direct-badge{
+  display:none;
+  align-items:center;gap:4px;
+  padding:2px 8px;
+  border-radius:20px;
+  background:rgba(0,229,160,0.1);
+  border:1px solid rgba(0,229,160,0.25);
+  color:var(--d2);
+  font-size:10.5px;font-weight:600;
+  letter-spacing:0.04em;
+  flex-shrink:0;
+  white-space:nowrap;
+  opacity:1;
+  transition:opacity 0.5s;
+}
+#direct-badge.show{display:flex;}
+#direct-badge.fade{opacity:0;}
+
+/* Loading bar */
+#load-bar{
+  position:absolute;bottom:0;left:0;height:2px;
+  background:linear-gradient(90deg,var(--d1),var(--d2));
+  width:0%;transition:width 0.3s ease;
+  border-radius:0 2px 2px 0;
+}
+#load-bar.loading{animation:loadpulse 1.5s ease-in-out infinite;}
+@keyframes loadpulse{
+  0%{width:15%;opacity:1;}
+  50%{width:70%;opacity:0.8;}
+  100%{width:90%;opacity:0.6;}
+}
+#load-bar.done{width:100%;transition:width 0.15s;opacity:0;transition:opacity 0.3s 0.2s;}
+
+.refresh-btn{}
+
+/* ── ERROR PAGE ── */
+.err-page{
+  width:100%;height:100%;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:16px;
+  background:var(--bg);
+  padding:32px 20px;
+  text-align:center;
+}
+.err-icon{
+  font-size:40px;opacity:0.4;
+  animation:errpop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes errpop{from{transform:scale(0.5);opacity:0;}to{transform:scale(1);opacity:0.4;}}
+.err-title{font-size:17px;font-weight:700;color:var(--text);opacity:0.85;}
+.err-sub{font-size:12.5px;color:var(--text2);max-width:340px;line-height:1.6;}
+.err-url{
+  font-family:'DM Mono',monospace;font-size:11px;
+  color:var(--text3);background:var(--surface2);
+  padding:6px 12px;border-radius:6px;
+  border:1px solid var(--border);
+  max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.err-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:4px;}
+.err-btn{
+  padding:8px 18px;border-radius:8px;font-size:12.5px;font-weight:600;
+  cursor:pointer;transition:all 0.15s;border:1.5px solid var(--border);
+  color:var(--text2);background:var(--surface2);
+}
+.err-btn:hover{background:var(--surface3);color:var(--text);border-color:var(--border2);}
+.err-btn.primary{
+  background:rgba(124,111,255,0.15);border-color:var(--d1);color:var(--d1);
+}
+.err-btn.primary:hover{background:rgba(124,111,255,0.25);}
+.err-btn.warn-btn{
+  background:rgba(255,184,48,0.1);border-color:rgba(255,184,48,0.4);color:var(--warn);
+}
+.err-btn.warn-btn:hover{background:rgba(255,184,48,0.2);}
+.err-note{
+  font-size:11px;color:var(--text3);max-width:320px;line-height:1.5;
+  padding:8px 12px;background:var(--surface2);border-radius:6px;
+  border:1px solid var(--border);
+}
+
+/* ═══════════════════════════════════════════
+   VIEWPORT
+═══════════════════════════════════════════ */
+#viewport{
+  flex:1;
+  position:relative;
+  overflow:hidden;
+  background:var(--bg);
+}
+
+/* Desktop containers */
+.desktop{
+  position:absolute;inset:0;
+  display:none;
+  flex-direction:column;
+}
+.desktop.active{display:flex;}
+
+/* Tab pages */
+.tab-page{
+  position:absolute;inset:0;
+  display:none;
+}
+.tab-page.active{display:block;}
+
+/* iframes */
+.tab-page iframe{
+  width:100%;height:100%;
+  border:none;
+  background:#fff;
+}
+
+/* New tab page */
+.newtab{
+  width:100%;height:100%;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:28px;
+  background:var(--newtab-bg);
+  padding:20px;
+}
+.newtab-logo{
+  font-size:72px;font-weight:700;
+  letter-spacing:-0.03em;
+  /* Google-style multicolor logo */
+  background: linear-gradient(135deg, #4285f4 0%, #ea4335 25%, #fbbc04 50%, #34a853 75%, #4285f4 100%);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  font-family:'Google Sans','Roboto',sans-serif;
+  line-height:1;
+  user-select:none;
+}
+.newtab-search{
+  width:100%;max-width:560px;
+  display:flex;align-items:center;gap:12px;
+  background:var(--surface);
+  border:1px solid var(--search-border);
+  border-radius:24px;
+  padding:0 20px;
+  height:46px;
+  transition:border-color 0.15s, box-shadow 0.15s;
+  box-shadow:0 1px 6px rgba(0,0,0,0.1);
+}
+.newtab-search:focus-within{
+  box-shadow:0 1px 6px rgba(26,115,232,0.3);
+  border-color:var(--d1);
+}
+.newtab-search input{
+  flex:1;font-size:15px;font-family:'Roboto',sans-serif;
+  color:var(--text);caret-color:var(--d1);
+}
+.newtab-search input::placeholder{color:var(--text3);}
+.newtab-search button{
+  color:var(--text2);font-size:16px;
+  padding:4px;border-radius:6px;
+  transition:color 0.14s;
+}
+.newtab-search button:hover{color:var(--d1);}
+
+.newtab-shortcuts{
+  display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+  max-width:560px;
+}
+.shortcut-item{
+  display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:12px 16px;border-radius:12px;
+  background:var(--surface);border:1px solid var(--border);
+  cursor:pointer;transition:all 0.15s;min-width:76px;
+  box-shadow:0 1px 3px rgba(0,0,0,0.08);
+}
+.shortcut-item:hover{background:var(--surface2);border-color:var(--border2);box-shadow:0 2px 6px rgba(0,0,0,0.12);}
+.shortcut-icon{font-size:22px;}
+.shortcut-label{font-size:11px;color:var(--text2);font-weight:500;letter-spacing:0.01em;font-family:'Roboto',sans-serif;}
+
+/* ═══════════════════════════════════════════
+   DESKTOP SWITCH ANIMATION
+═══════════════════════════════════════════ */
+.desktop.slide-out-left{
+  animation:slideOutLeft 0.25s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+.desktop.slide-out-right{
+  animation:slideOutRight 0.25s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+.desktop.slide-in-left{
+  animation:slideInLeft 0.25s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+.desktop.slide-in-right{
+  animation:slideInRight 0.25s cubic-bezier(0.4,0,0.2,1) forwards;
+}
+@keyframes slideOutLeft{from{transform:translateX(0);opacity:1;}to{transform:translateX(-40px);opacity:0;}}
+@keyframes slideOutRight{from{transform:translateX(0);opacity:1;}to{transform:translateX(40px);opacity:0;}}
+@keyframes slideInLeft{from{transform:translateX(40px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+@keyframes slideInRight{from{transform:translateX(-40px);opacity:0;}to{transform:translateX(0);opacity:1;}}
+
+/* ═══════════════════════════════════════════
+   MOBILE BOTTOM BAR
+═══════════════════════════════════════════ */
+#mobile-bar{
+  display:none;
+  background:var(--surface);
+  border-top:1px solid var(--border);
+  padding:8px 16px;
+  padding-bottom:max(8px, env(safe-area-inset-bottom));
+  gap:0;
+  justify-content:space-around;
+  align-items:center;
+  flex-shrink:0;
+}
+.mob-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  color:var(--text2);font-size:18px;padding:6px 12px;
+  border-radius:8px;transition:all 0.14s;
+}
+.mob-btn:hover,.mob-btn:active{background:var(--surface2);color:var(--text);}
+.mob-btn span{font-size:9px;font-weight:600;letter-spacing:0.05em;color:var(--text3);}
+
+/* ═══════════════════════════════════════════
+   MOBILE TABS SHEET
+═══════════════════════════════════════════ */
+#tabs-sheet{
+  display:none;
+  position:fixed;inset:0;z-index:200;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);
+  align-items:flex-end;
+}
+#tabs-sheet.open{display:flex;}
+#tabs-inner{
+  width:100%;
+  background:var(--surface);
+  border-radius:16px 16px 0 0;
+  border:1px solid var(--border);
+  border-bottom:none;
+  max-height:70dvh;
+  overflow-y:auto;
+  padding:12px 12px max(12px,env(safe-area-inset-bottom));
+}
+#tabs-sheet-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 4px 12px;
+}
+#tabs-sheet-header h3{font-size:15px;font-weight:700;}
+.sheet-close{font-size:20px;color:var(--text2);width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:6px;}
+.sheet-close:hover{background:var(--surface2);}
+
+.sheet-desk-label{
+  font-size:10px;font-weight:700;letter-spacing:0.08em;
+  color:var(--text3);padding:4px 6px;margin-bottom:4px;
+  text-transform:uppercase;
+}
+.sheet-desk-label.d1{color:var(--d1);}
+.sheet-desk-label.d2{color:var(--d2);}
+
+.sheet-tab-item{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 8px;border-radius:8px;
+  cursor:pointer;transition:background 0.12s;
+  margin-bottom:2px;
+}
+.sheet-tab-item:hover,.sheet-tab-item.active{background:var(--surface2);}
+.sheet-tab-favicon{
+  width:20px;height:20px;border-radius:4px;
+  background:var(--surface3);display:flex;align-items:center;justify-content:center;
+  font-size:12px;flex-shrink:0;overflow:hidden;
+}
+.sheet-tab-favicon img{width:20px;height:20px;object-fit:contain;}
+.sheet-tab-title{flex:1;font-size:13px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+.sheet-tab-close{
+  width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:var(--text3);
+  transition:all 0.12s;
+}
+.sheet-tab-close:hover{background:var(--surface);color:var(--danger);}
+.sheet-new-tab{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 8px;border-radius:8px;
+  color:var(--text2);font-size:13px;font-weight:600;
+  cursor:pointer;transition:background 0.12s;
+}
+.sheet-new-tab:hover{background:var(--surface2);color:var(--text);}
+
+/* ═══════════════════════════════════════════
+   TOOLTIP
+═══════════════════════════════════════════ */
+.tip{
+  position:fixed;z-index:500;
+  background:var(--surface3);
+  border:1px solid var(--border2);
+  color:var(--text);
+  font-size:11px;font-family:'DM Mono',monospace;
+  padding:4px 8px;border-radius:5px;
+  pointer-events:none;
+  opacity:0;transition:opacity 0.15s;
+  white-space:nowrap;
+}
+.tip.show{opacity:1;}
+
+/* ═══════════════════════════════════════════
+   MOBILE RESPONSIVE
+═══════════════════════════════════════════ */
+@media(max-width:600px){
+  #tab-row{display:none;}
+  #mobile-bar{display:flex;}
+  .desk-pills{display:none;}
+  .nav-btn.hide-mobile{display:none;}
+  #url-wrap{border-radius:20px;}
+  #bar-row{padding:6px 8px;}
+}
+@media(min-width:601px){
+  #mobile-bar{display:none;}
+}
+
+/* ═══════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════ */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--border2);}
+</style>
+</head>
+<body>
+
+<!-- ══════════ CHROME ══════════ -->
+<div id="chrome">
+
+  <!-- Tab row (desktop only) -->
+  <div id="tab-row">
+    <div class="tab-strip" id="tab-strip"></div>
+    <button class="tab-add" id="new-tab-btn" title="New tab (Ctrl+T)">+</button>
+  </div>
+
+  <!-- URL bar row -->
+  <div id="bar-row">
+
+    <!-- Desktop pills -->
+    <div class="desk-pills">
+      <button class="desk-pill d1 active" id="pill-d1" title="Desktop 1 (Ctrl+Alt+Shift+Left)">
+        <span class="desk-pill-dot"></span>Desk 1
+      </button>
+      <button class="desk-pill d2" id="pill-d2" title="Desktop 2 (Ctrl+Alt+Shift+Right)">
+        <span class="desk-pill-dot"></span>Desk 2
+      </button>
+    </div>
+
+    <!-- Back -->
+    <button class="nav-btn hide-mobile" id="back-btn" title="Back (Alt+Left)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M9 2L4 7L9 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <!-- Forward -->
+    <button class="nav-btn hide-mobile" id="fwd-btn" title="Forward (Alt+Right)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M5 2L10 7L5 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+    <!-- Refresh -->
+    <button class="nav-btn refresh-btn" id="refresh-btn" title="Refresh (Ctrl+R)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M12 2.5A5.5 5.5 0 1 1 6.5 1H9M9 1L7 3M9 1L7-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    <!-- URL wrap -->
+    <div id="url-wrap" class="d1-focus">
+      <span id="lock-icon">🔒</span>
+      <input id="url-input" type="text" placeholder="Search or enter a URL" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <!-- Proxy badge -->
+      <div id="proxy-badge">
+        <svg viewBox="0 0 10 10" fill="none"><path d="M5 1L9 3V7L5 9L1 7V3L5 1Z" stroke="currentColor" stroke-width="1.2"/></svg>
+        SJ
+      </div>
+      <!-- Direct badge -->
+      <div id="direct-badge">✓ Direct</div>
+      <!-- Load bar -->
+      <div id="load-bar"></div>
+    </div>
+
+    <!-- New tab shortcut (desktop) -->
+    <button class="nav-btn hide-mobile" id="newtab-btn2" title="New tab (Ctrl+T)">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="1" y="1" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7 4.5V9.5M4.5 7H9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <!-- Theme toggle -->
+    <div id="theme-pill">
+      <button class="theme-opt active" id="theme-dark" title="Dark mode">🌙</button>
+      <button class="theme-opt" id="theme-light" title="Light mode">☀️</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ VIEWPORT ══════════ -->
+<div id="viewport">
+  <div class="desktop active" id="desktop-0"></div>
+  <div class="desktop" id="desktop-1"></div>
+</div>
+
+<!-- ══════════ MOBILE BOTTOM BAR ══════════ -->
+<div id="mobile-bar">
+  <button class="mob-btn" id="mob-back">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M13 4L7 10L13 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Back</span>
+  </button>
+  <button class="mob-btn" id="mob-fwd">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 4L13 10L7 16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Fwd</span>
+  </button>
+  <button class="mob-btn" id="mob-tabs">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="11" y="2" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="2" y="11" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/><rect x="11" y="11" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg>
+    <span>Tabs</span>
+  </button>
+  <button class="mob-btn" id="mob-desk">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="8" stroke="currentColor" stroke-width="1.8"/><path d="M10 6V10L13 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <span id="mob-desk-label">Desk 1</span>
+  </button>
+  <button class="mob-btn" id="mob-new">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="2" width="16" height="16" rx="3" stroke="currentColor" stroke-width="1.8"/><path d="M10 6V14M6 10H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <span>New</span>
+  </button>
+</div>
+
+<!-- ══════════ MOBILE TABS SHEET ══════════ -->
+<div id="tabs-sheet">
+  <div id="tabs-inner">
+    <div id="tabs-sheet-header">
+      <h3>Tabs</h3>
+      <button class="sheet-close" id="sheet-close-btn">✕</button>
+    </div>
+    <div id="sheet-content"></div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div class="tip" id="tooltip"></div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════
+const SERVER_BASE = 'https://nab-server-dpa4.onrender.com';
+const SCRAM_BASE  = SERVER_BASE + '/scram/service/';
+// Set to null to disable proxy and only use direct loads.
+const PROXY_ENABLED = true;
+
+// ═══════════════════════════════════════════
+// SCRAMJET + BAREMUX BOOTSTRAP
+// ═══════════════════════════════════════════
+let scramjetController = null;
+let scramjetReady = false;
+const scramjetReadyCallbacks = [];
+
+function onScramjetReady(cb) {
+  if (scramjetReady) { cb(); return; }
+  scramjetReadyCallbacks.push(cb);
+}
+
+function _sjDebug(msg, color) {
+  let el = document.getElementById('_sj_debug');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_sj_debug';
+    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;padding:8px 12px;z-index:99999;font-family:monospace;font-size:11px;color:#fff;word-break:break-all';
+    document.body ? document.body.appendChild(el) : document.addEventListener('DOMContentLoaded', () => document.body.appendChild(el));
+  }
+  el.style.background = color === 'green' ? '#1a7a1a' : color === 'red' ? '#aa0000' : '#333';
+  el.textContent = '[SJ] ' + msg;
+}
+
+if (PROXY_ENABLED && 'serviceWorker' in navigator) {
+  _sjDebug('Loading BareMux...');
+  const baremuxScript = document.createElement('script');
+  baremuxScript.src = SERVER_BASE + '/baremux/baremux.js';
+  baremuxScript.onload = () => {
+    _sjDebug('BareMux OK, loading scramjet.all.js...');
+    const scramjetScript = document.createElement('script');
+    scramjetScript.src = SERVER_BASE + '/scram/scramjet.all.js';
+    scramjetScript.onload = async () => {
+      _sjDebug('scramjet.all.js OK, calling init...');
+      try {
+        const { ScramjetController } = $scramjetLoadController();
+        scramjetController = new ScramjetController({
+          prefix: '/scram/service/',
+          files: {
+            wasm: SERVER_BASE + '/scram/scramjet.wasm.wasm',
+            all:  SERVER_BASE + '/scram/scramjet.all.js',
+            sync: SERVER_BASE + '/scram/scramjet.sync.js',
+          }
+        });
+        await scramjetController.init();
+        _sjDebug('Controller init OK, registering SW...');
+
+        await navigator.serviceWorker.register(SERVER_BASE + '/sw.js', {
+          scope: '/',
+          updateViaCache: 'none',
+        });
+        _sjDebug('SW registered, waiting for ready...');
+        await navigator.serviceWorker.ready;
+        _sjDebug('SW ready, setting transport...');
+
+        const connection = new BareMux.BareMuxConnection('/baremux/index.mjs');
+        await connection.setTransport('/epoxy/index.mjs', [{ wisp: 'wss://nab-server-dpa4.onrender.com/wisp/' }]);
+
+        scramjetReady = true;
+        scramjetReadyCallbacks.forEach(cb => cb());
+        scramjetReadyCallbacks.length = 0;
+        console.log('[NAB] Scramjet ready');
+        _sjDebug('READY', 'green');
+        setTimeout(() => document.getElementById('_sj_debug')?.remove(), 5000);
+      } catch (e) {
+        console.warn('[NAB] Scramjet init failed:', e);
+        _sjDebug('INIT FAILED: ' + (e?.message || String(e)), 'red');
+      }
+    };
+    scramjetScript.onerror = () => _sjDebug('FAILED to load scramjet.all.js', 'red');
+    document.head.appendChild(scramjetScript);
+  };
+  baremuxScript.onerror = () => _sjDebug('FAILED to load baremux.js', 'red');
+  document.head.appendChild(baremuxScript);
+} else {
+  _sjDebug('PROXY_ENABLED=false or no serviceWorker support', 'red');
+}
+
+// ═══════════════════════════════════════════
+// PROXY-ONLY DOMAIN MEMORY
+// Domains that previously failed direct iframe load
+// are remembered so we skip straight to proxy next time.
+// ═══════════════════════════════════════════
+const PROXY_ONLY_DOMAINS = new Set(
+  JSON.parse(localStorage.getItem('meridian_proxy_domains') || '[]')
+);
+
+function markDomainAsProxyOnly(url) {
+  try {
+    const hostname = new URL(url).hostname;
+    if (!PROXY_ONLY_DOMAINS.has(hostname)) {
+      PROXY_ONLY_DOMAINS.add(hostname);
+      localStorage.setItem('meridian_proxy_domains', JSON.stringify([...PROXY_ONLY_DOMAINS]));
+    }
+  } catch {}
+}
+
+function isProxyOnlyDomain(url) {
+  try { return PROXY_ONLY_DOMAINS.has(new URL(url).hostname); }
+  catch { return false; }
+}
+
+// ═══════════════════════════════════════════
+// PROXY URL HELPERS
+// ═══════════════════════════════════════════
+function getProxiedUrl(url) {
+  if (!scramjetController) return null;
+  try {
+    return scramjetController.encodeUrl(url);
+  } catch { return null; }
+}
+
+function decodeProxiedUrl(proxiedUrl) {
+  if (!scramjetController) return proxiedUrl;
+  try {
+    return scramjetController.decodeUrl(proxiedUrl);
+  } catch { return proxiedUrl; }
+}
+
+function isProxiedUrl(url) {
+  return url && url.includes('/scram/service/');
+}
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let activeDesk = 0; // 0 or 1
+
+const desktops = [
+  { tabs: [], activeTab: -1 },
+  { tabs: [], activeTab: -1 }
+];
+
+let tabIdCounter = parseInt(localStorage.getItem('meridian_tabIdCounter') || '0');
+
+// Tab structure:
+// { id, title, url, favicon, useProxy, iframeEl, scramjetFrame, pageEl, history[], historyIdx }
+
+// ═══════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════
+function saveState() {
+  const data = desktops.map(d => ({
+    activeTab: d.activeTab,
+    tabs: d.tabs.map(t => ({ id: t.id, title: t.title, url: t.url, favicon: t.favicon, useProxy: t.useProxy }))
+  }));
+  localStorage.setItem('meridian_state', JSON.stringify(data));
+  localStorage.setItem('meridian_activeDesk', activeDesk);
+  localStorage.setItem('meridian_tabIdCounter', tabIdCounter);
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('meridian_state');
+    const savedDesk = parseInt(localStorage.getItem('meridian_activeDesk') || '0');
+    if (raw) {
+      const data = JSON.parse(raw);
+      data.forEach((dData, di) => {
+        dData.tabs.forEach(t => {
+          createTab(di, t.url, t.title, false, t.id, t.useProxy);
+        });
+        if (dData.tabs.length > 0) {
+          const targetIdx = Math.min(dData.activeTab, dData.tabs.length - 1);
+          setActiveTab(di, targetIdx, true);
+        }
+      });
+    }
+    desktops.forEach((d, di) => {
+      if (d.tabs.length === 0) createTab(di, null, 'New Tab', true);
+    });
+    switchDesktop(savedDesk, null, true);
+  } catch(e) {
+    desktops.forEach((_, di) => createTab(di, null, 'New Tab', true));
+    switchDesktop(0, null, true);
+  }
+}
+
+// ═══════════════════════════════════════════
+// URL HELPERS
+// ═══════════════════════════════════════════
+function normalizeUrl(input) {
+  input = input.trim();
+  if (!input) return null;
+  if (/^(https?|ftp):\/\//i.test(input)) return input;
+  if (/^localhost|^127\.|^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(input)) return 'http://' + input;
+  if (/^[a-z0-9-]+\.[a-z]{2,}/i.test(input) && !input.includes(' ')) return 'https://' + input;
+  return 'https://www.google.com/search?q=' + encodeURIComponent(input);
+}
+
+function getFaviconUrl(url) {
+  try {
+    const u = new URL(url);
+    return `https://www.google.com/s2/favicons?domain=${u.hostname}&sz=32`;
+  } catch { return null; }
+}
+
+function getLockState(url) {
+  if (!url) return { icon: '🔒', cls: '' };
+  if (url.startsWith('https://')) return { icon: '🔒', cls: 'secure' };
+  if (url.startsWith('http://')) return { icon: '⚠️', cls: 'insecure' };
+  return { icon: '🔒', cls: '' };
+}
+
+// ═══════════════════════════════════════════
+// TAB MANAGEMENT
+// ═══════════════════════════════════════════
+function createTab(deskIdx, url, title, activate = true, forceId = null, forceProxy = false) {
+  const id = forceId !== null ? forceId : ++tabIdCounter;
+  const desk = desktops[deskIdx];
+
+  const pageEl = document.createElement('div');
+  pageEl.className = 'tab-page';
+  pageEl.dataset.tabId = id;
+  document.getElementById(`desktop-${deskIdx}`).appendChild(pageEl);
+
+  const tab = { id, title: title || 'New Tab', url: url || null, favicon: null, useProxy: forceProxy, iframeEl: null, scramjetFrame: null, pageEl, history: url ? [url] : [], historyIdx: 0 };
+  desk.tabs.push(tab);
+  const idx = desk.tabs.length - 1;
+
+  if (url) {
+    loadUrlInTab(deskIdx, idx, url, forceProxy);
+  } else {
+    renderNewTabPage(pageEl, deskIdx);
+  }
+
+  renderTabStrip();
+  renderMobileSheet();
+  if (activate) setActiveTab(deskIdx, idx);
+  saveState();
+  return idx;
+}
+
+function closeTab(deskIdx, tabIdx) {
+  const desk = desktops[deskIdx];
+  if (desk.tabs.length <= 1) {
+    const tab = desk.tabs[tabIdx];
+    tab.url = null;
+    tab.title = 'New Tab';
+    tab.favicon = null;
+    tab.useProxy = false;
+    renderNewTabPage(tab.pageEl, deskIdx);
+    renderTabStrip();
+    renderMobileSheet();
+    saveState();
+    updateUrlBar();
+    return;
+  }
+  const tab = desk.tabs[tabIdx];
+  tab.pageEl.remove();
+  desk.tabs.splice(tabIdx, 1);
+  let newActive = desk.activeTab;
+  if (newActive >= desk.tabs.length) newActive = desk.tabs.length - 1;
+  if (newActive === tabIdx) newActive = Math.max(0, tabIdx - 1);
+  desk.activeTab = -1;
+  setActiveTab(deskIdx, newActive);
+  renderTabStrip();
+  renderMobileSheet();
+  saveState();
+}
+
+function setActiveTab(deskIdx, tabIdx, silent = false) {
+  const desk = desktops[deskIdx];
+  desk.tabs.forEach((t, i) => {
+    t.pageEl.classList.toggle('active', i === tabIdx);
+  });
+  desk.activeTab = tabIdx;
+  if (!silent) {
+    renderTabStrip();
+    updateUrlBar();
+    renderMobileSheet();
+  }
+}
+
+function getActiveTab(deskIdx) {
+  const desk = desktops[deskIdx];
+  return desk.tabs[desk.activeTab] || null;
+}
+
+// ═══════════════════════════════════════════
+// LOAD URL
+// ═══════════════════════════════════════════
+const loadAttempts = {};
+
+function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
+  const desk = desktops[deskIdx];
+  const tab = desk.tabs[tabIdx];
+  if (!tab) return;
+
+  const attemptId = (loadAttempts[tab.id] || 0) + 1;
+  loadAttempts[tab.id] = attemptId;
+
+  tab.url = url;
+  tab.useProxy = false;
+  tab.scramjetFrame = null;
+  tab.pageEl.innerHTML = '';
+
+  const isActive = () => deskIdx === activeDesk && desk.activeTab === tabIdx;
+  const isActiveTab = (t) => desktops[activeDesk].tabs[desktops[activeDesk].activeTab] === t;
+
+  if (isActive()) { startLoading(); hideBadges(); }
+
+  // ── Show error page ──
+  function showErrorPage(reason) {
+    if (loadAttempts[tab.id] !== attemptId) return;
+    tab.pageEl.innerHTML = '';
+    tab.iframeEl = null;
+    tab.title = 'Error — ' + getDomainTitle(url);
+    tab.favicon = null;
+
+    const hasProxy = PROXY_ENABLED;
+    const blockedByHeader = reason === 'blocked';
+
+    const div = document.createElement('div');
+    div.className = 'err-page';
+    div.innerHTML = `
+      <div class="err-icon">${blockedByHeader ? '🚫' : '⚠️'}</div>
+      <div class="err-title">${blockedByHeader ? "This site can't be framed" : "Page couldn't load"}</div>
+      <div class="err-sub">${
+        blockedByHeader
+          ? (hasProxy
+              ? 'This site blocks iframes. Try loading it through the proxy instead.'
+              : 'This site uses X-Frame-Options or CSP to block embedding.')
+          : 'Something went wrong loading this page. Check the URL or try again.'
+      }</div>
+      <div class="err-url">${url}</div>
+      <div class="err-actions">
+        ${hasProxy && blockedByHeader ? `<button class="err-btn warn-btn" id="err-proxy-${tab.id}">⚡ Try via Proxy</button>` : ''}
+        <button class="err-btn primary" id="err-retry-${tab.id}">↺ Retry direct</button>
+      </div>
+    `;
+    tab.pageEl.appendChild(div);
+
+    if (isActive()) { stopLoading(); hideBadges(); renderTabStrip(); renderMobileSheet(); updateUrlBar(); }
+
+    document.getElementById(`err-proxy-${tab.id}`)?.addEventListener('click', () => loadUrlInTab(deskIdx, tabIdx, url, true));
+    document.getElementById(`err-retry-${tab.id}`)?.addEventListener('click', () => loadUrlInTab(deskIdx, tabIdx, url, false));
+  }
+
+  // ── Iframe loaded successfully ──
+  function onSuccess(usedProxy) {
+    if (loadAttempts[tab.id] !== attemptId) return;
+    tab.title = getTabTitleFromIframe(tab.iframeEl) || getDomainTitle(url);
+    tab.favicon = getFaviconUrl(url);
+    tab.useProxy = usedProxy;
+    if (tab.history[tab.historyIdx] !== url) {
+      tab.history = tab.history.slice(0, tab.historyIdx + 1);
+      tab.history.push(url);
+      tab.historyIdx = tab.history.length - 1;
+    }
+    if (isActive()) {
+      stopLoading();
+      usedProxy ? showProxyBadge() : showDirectBadge();
+      updateUrlBar();
+    }
+    renderTabStrip();
+    renderMobileSheet();
+    saveState();
+  }
+
+  // ── Handle navigation within the iframe ──
+  function onNavigate(iframe) {
+    let currentUrl = null;
+    try {
+      const u = iframe.contentDocument?.URL;
+      if (u && u !== 'about:blank') currentUrl = u;
+    } catch {}
+
+    // Scramjet proxied: read decoded URL from the ScramjetFrame object
+    if (!currentUrl && tab.scramjetFrame) {
+      try {
+        const decoded = tab.scramjetFrame.url?.href;
+        if (decoded && decoded !== 'about:blank') currentUrl = decoded;
+      } catch {}
+    }
+
+    // Fallback: try legacy decodeProxiedUrl from iframe.src
+    if (!currentUrl && tab.useProxy && isProxiedUrl(iframe.src)) {
+      try {
+        const decoded = decodeProxiedUrl(iframe.src);
+        if (decoded && decoded !== iframe.src) currentUrl = decoded;
+      } catch {}
+    }
+
+    if (!currentUrl) {
+      try {
+        const t = iframe.contentDocument?.title;
+        if (t && t !== tab.title) { tab.title = t; renderTabStrip(); saveState(); }
+      } catch {}
+      if (isActiveTab(tab)) updateUrlBar();
+      return;
+    }
+
+    if (currentUrl === tab.url) {
+      try {
+        const t = iframe.contentDocument?.title;
+        if (t) { tab.title = t; renderTabStrip(); saveState(); }
+      } catch {}
+      return;
+    }
+
+    tab.url = currentUrl;
+    tab.favicon = getFaviconUrl(currentUrl);
+    try {
+      const t = iframe.contentDocument?.title;
+      tab.title = t || getDomainTitle(currentUrl);
+    } catch {
+      tab.title = getDomainTitle(currentUrl);
+    }
+    if (tab.history[tab.historyIdx] !== currentUrl) {
+      tab.history = tab.history.slice(0, tab.historyIdx + 1);
+      tab.history.push(currentUrl);
+      tab.historyIdx = tab.history.length - 1;
+    }
+    if (isActiveTab(tab)) updateUrlBar();
+    renderTabStrip();
+    renderMobileSheet();
+    saveState();
+  }
+
+  // ── Pre-check if a URL is frameable ──
+  // We only block on X-Frame-Options: deny/sameorigin.
+  // We skip CSP frame-ancestors checks here — too many false positives.
+  // The iframe will fall back to proxy on its own if it actually gets blocked.
+  async function checkFrameable(targetUrl) {
+    if (!PROXY_ENABLED) return true;
+    try {
+      const res = await fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(targetUrl)}`, {
+        signal: AbortSignal.timeout(4000)
+      });
+      const data = await res.json();
+      // Only trust XFO, not CSP (too many false positives with CSP parsing)
+      if (data.xfo && /deny|sameorigin/i.test(data.xfo)) return false;
+      return true;
+    } catch {
+      return true;
+    }
+  }
+
+  // ── Create iframe ──
+  function makeIframe(src, onLoad, onErr) {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('sandbox', 'allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts allow-top-navigation-by-user-activation');
+    iframe.setAttribute('allowfullscreen', '');
+    iframe.setAttribute('allow', 'autoplay; fullscreen; encrypted-media; picture-in-picture');
+    iframe.style.cssText = 'width:100%;height:100%;border:none;background:#fff;';
+    tab.iframeEl = iframe;
+    tab.pageEl.innerHTML = '';
+    tab.pageEl.appendChild(iframe);
+
+    let settled = false;
+
+    iframe.onload = () => {
+      if (loadAttempts[tab.id] !== attemptId) return;
+      if (!settled) {
+        settled = true;
+        // Scramjet proxy URLs are always cross-origin from the SW — skip blank check
+        const isProxy = src.includes('/scram/service/');
+        if (!isProxy) {
+          try {
+            const doc = iframe.contentDocument;
+            if (doc && doc.URL === 'about:blank' && !src.startsWith('about:')) {
+              onErr('blocked');
+              return;
+            }
+          } catch { /* cross-origin = loaded fine */ }
+        }
+        onLoad();
+      } else {
+        onNavigate(iframe);
+      }
+    };
+
+    iframe.onerror = () => {
+      if (settled || loadAttempts[tab.id] !== attemptId) return;
+      settled = true;
+      onErr('error');
+    };
+
+    setTimeout(() => {
+      if (settled || loadAttempts[tab.id] !== attemptId) return;
+      settled = true;
+      // For proxy loads, a timeout means SW didn't respond — show error
+      // For direct loads, treat as blocked and fall through to proxy
+      onErr('timeout');
+    }, 10000);
+
+    // Safety: always stop the spinner after 12s no matter what
+    setTimeout(() => {
+      if (isActive()) stopLoading();
+    }, 12000);
+
+    iframe.src = src;
+    return iframe;
+  }
+
+  // ── Load via proxy using Scramjet Frame API ──
+  function loadViaProxy() {
+    if (!PROXY_ENABLED) { showErrorPage('noproxy'); return; }
+    markDomainAsProxyOnly(url);
+    onScramjetReady(() => {
+      if (loadAttempts[tab.id] !== attemptId) return;
+
+      // Let Scramjet create and own the iframe — passing a pre-built iframe
+      // prevents SJ from fully initialising its context (contextInit never fires)
+      const sjFrame = scramjetController.createFrame();
+      tab.scramjetFrame = sjFrame;
+
+      const iframe = sjFrame.frame;
+      iframe.style.cssText = 'width:100%;height:100%;border:none;background:#fff;';
+      tab.iframeEl = iframe;
+      tab.pageEl.innerHTML = '';
+      tab.pageEl.appendChild(iframe);
+
+      let settled = false;
+      const proxyTimeout = setTimeout(() => {
+        if (settled || loadAttempts[tab.id] !== attemptId) return;
+        settled = true;
+        showErrorPage('timeout');
+      }, 10000);
+      setTimeout(() => { if (isActive()) stopLoading(); }, 12000);
+
+      // contextInit fires when Scramjet fully initializes inside the proxied page —
+      // this is the definitive "page is ready" signal for the initial load.
+      sjFrame.addEventListener('contextInit', () => {
+        if (loadAttempts[tab.id] !== attemptId) return;
+        if (!settled) {
+          settled = true;
+          clearTimeout(proxyTimeout);
+          onSuccess(true);
+        }
+      });
+
+      // urlchange fires on URL changes (including history API pushState).
+      // We use it only for in-page navigations after the initial load is settled.
+      // Note: urlchange can fire on sjFrame.go() before the page renders,
+      // so we never treat it as the initial load signal.
+      sjFrame.addEventListener('urlchange', (e) => {
+        if (loadAttempts[tab.id] !== attemptId) return;
+        const newUrl = e.url || (sjFrame.url?.href);
+        if (!newUrl || newUrl === 'about:blank') return;
+
+        if (settled) {
+          // In-page navigation after load
+          if (newUrl === tab.url) return;
+          tab.url = newUrl;
+          tab.favicon = getFaviconUrl(newUrl);
+          tab.title = getDomainTitle(newUrl);
+          if (tab.history[tab.historyIdx] !== newUrl) {
+            tab.history = tab.history.slice(0, tab.historyIdx + 1);
+            tab.history.push(newUrl);
+            tab.historyIdx = tab.history.length - 1;
+          }
+          if (isActiveTab(tab)) updateUrlBar();
+          renderTabStrip();
+          renderMobileSheet();
+          saveState();
+        }
+      });
+
+      // iframe 'load' fires on the SW shell, not the real page — only use it
+      // for title updates after contextInit has already settled the tab.
+      iframe.addEventListener('load', () => {
+        if (loadAttempts[tab.id] !== attemptId || !settled) return;
+        try {
+          const t = iframe.contentDocument?.title;
+          if (t && t !== tab.title) { tab.title = t; renderTabStrip(); saveState(); }
+        } catch {}
+        if (isActiveTab(tab)) updateUrlBar();
+      });
+
+      // Navigate the frame to the target URL
+      try {
+        sjFrame.go(url);
+      } catch (e) {
+        if (!settled) { settled = true; clearTimeout(proxyTimeout); showErrorPage('error'); }
+      }
+    });
+  }
+
+  if (forceProxy) {
+    loadViaProxy();
+    return;
+  }
+
+  // Skip check if we already know this domain needs proxy
+  if (PROXY_ENABLED && isProxyOnlyDomain(url)) {
+    loadViaProxy();
+    return;
+  }
+
+  // Pre-check then decide: direct or proxy
+  checkFrameable(url).then(frameable => {
+    if (loadAttempts[tab.id] !== attemptId) return;
+    if (!frameable && PROXY_ENABLED) {
+      markDomainAsProxyOnly(url);
+      loadViaProxy();
+    } else {
+      makeIframe(
+        url,
+        () => onSuccess(false),
+        (reason) => {
+          if (reason === 'blocked' && PROXY_ENABLED) {
+            if (loadAttempts[tab.id] !== attemptId) return;
+            markDomainAsProxyOnly(url);
+            if (isActive()) { startLoading(); hideBadges(); }
+            loadViaProxy();
+          } else {
+            showErrorPage(reason);
+          }
+        }
+      );
+    }
+  });
+}
+
+function getTabTitleFromIframe(iframe) {
+  try { return iframe.contentDocument?.title || null; }
+  catch { return null; }
+}
+
+function getDomainTitle(url) {
+  try { return new URL(url).hostname; } catch { return url; }
+}
+
+// ═══════════════════════════════════════════
+// NEW TAB PAGE
+// ═══════════════════════════════════════════
+const shortcuts = [
+  { icon: '🌐', label: 'Google',     url: 'https://google.com' },
+  { icon: '📺', label: 'YouTube',    url: 'https://youtube.com' },
+  { icon: '🎮', label: 'itch.io',    url: 'https://itch.io' },
+  { icon: '📰', label: 'Reddit',     url: 'https://reddit.com' },
+  { icon: '🐙', label: 'GitHub',     url: 'https://github.com' },
+  { icon: '🎵', label: 'SoundCloud', url: 'https://soundcloud.com' },
+];
+
+function renderNewTabPage(pageEl, deskIdx) {
+  pageEl.innerHTML = '';
+  const nt = document.createElement('div');
+  nt.className = 'newtab';
+  nt.innerHTML = `
+    <div class="newtab-logo">NAB</div>
+    <div class="newtab-search">
+      <input type="text" placeholder="Search or enter a URL…" id="nt-search-${deskIdx}-${Date.now()}" autocomplete="off" spellcheck="false">
+      <button>→</button>
+    </div>
+    <div class="newtab-shortcuts">
+      ${shortcuts.map(s => `
+        <div class="shortcut-item" data-url="${s.url}">
+          <div class="shortcut-icon">${s.icon}</div>
+          <div class="shortcut-label">${s.label}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  pageEl.appendChild(nt);
+
+  const inp = nt.querySelector('input');
+  const btn = nt.querySelector('button');
+  const go = () => { const url = normalizeUrl(inp.value); if (url) navigateTo(url); };
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  btn.addEventListener('click', go);
+  nt.querySelectorAll('.shortcut-item').forEach(el => {
+    el.addEventListener('click', () => navigateTo(el.dataset.url));
+  });
+  inp.focus();
+}
+
+// ═══════════════════════════════════════════
+// NAVIGATE
+// ═══════════════════════════════════════════
+function navigateTo(rawUrl, deskIdx = activeDesk) {
+  const url = normalizeUrl(rawUrl);
+  if (!url) return;
+  const desk = desktops[deskIdx];
+  const tabIdx = desk.activeTab;
+  if (tabIdx < 0) { createTab(deskIdx, url); return; }
+  loadUrlInTab(deskIdx, tabIdx, url);
+  if (deskIdx === activeDesk) updateUrlBar();
+}
+
+function openInNewTab(url, deskIdx = activeDesk) {
+  createTab(deskIdx, url, null, true);
+}
+
+// ═══════════════════════════════════════════
+// URL BAR
+// ═══════════════════════════════════════════
+function updateUrlBar() {
+  const tab = getActiveTab(activeDesk);
+  const urlInput = document.getElementById('url-input');
+  const lockEl = document.getElementById('lock-icon');
+  const urlWrap = document.getElementById('url-wrap');
+
+  if (tab && tab.url) {
+    urlInput.value = tab.url;
+    lockEl.textContent = tab.url.startsWith('http://') ? '⚠️' : '🔒';
+    lockEl.className = tab.url.startsWith('http://') ? 'insecure' : 'secure';
+    if (tab.useProxy) showProxyBadge();
+    else hideBadges();
+  } else {
+    urlInput.value = '';
+    lockEl.textContent = '🔒';
+    lockEl.className = '';
+    hideBadges();
+  }
+
+  urlWrap.className = activeDesk === 0 ? 'd1-focus' : 'd2-focus';
+}
+
+// ═══════════════════════════════════════════
+// BADGES & LOADING
+// ═══════════════════════════════════════════
+function showProxyBadge() {
+  document.getElementById('proxy-badge').classList.add('show');
+  document.getElementById('direct-badge').classList.remove('show','fade');
+}
+function showDirectBadge() {
+  const d = document.getElementById('direct-badge');
+  document.getElementById('proxy-badge').classList.remove('show');
+  d.classList.remove('fade');
+  d.classList.add('show');
+  setTimeout(() => d.classList.add('fade'), 1800);
+  setTimeout(() => d.classList.remove('show','fade'), 2400);
+}
+function hideBadges() {
+  document.getElementById('proxy-badge').classList.remove('show');
+  document.getElementById('direct-badge').classList.remove('show','fade');
+}
+
+let loadTimer = null;
+function startLoading() {
+  document.getElementById('load-bar').className = 'loading';
+  clearTimeout(loadTimer);
+}
+function stopLoading() {
+  document.getElementById('load-bar').className = 'done';
+  clearTimeout(loadTimer);
+  loadTimer = setTimeout(() => { document.getElementById('load-bar').className = ''; }, 600);
+}
+
+// ═══════════════════════════════════════════
+// TAB STRIP RENDER (desktop)
+// ═══════════════════════════════════════════
+function renderTabStrip() {
+  const strip = document.getElementById('tab-strip');
+  strip.innerHTML = '';
+  const desk = desktops[activeDesk];
+  const dClass = activeDesk === 0 ? 'd1-tab' : 'd2-tab';
+
+  desk.tabs.forEach((tab, i) => {
+    const el = document.createElement('div');
+    el.className = `tab ${dClass} ${i === desk.activeTab ? 'active' : ''}`;
+    el.dataset.idx = i;
+
+    const fav = document.createElement('div');
+    fav.className = 'tab-favicon';
+    if (tab.favicon) {
+      const img = document.createElement('img');
+      img.src = tab.favicon;
+      img.onerror = () => { fav.innerHTML = '🌐'; };
+      fav.appendChild(img);
+    } else {
+      fav.textContent = tab.url ? '🌐' : '✦';
+    }
+
+    const title = document.createElement('div');
+    title.className = 'tab-title';
+    title.textContent = tab.title || 'New Tab';
+
+    const close = document.createElement('button');
+    close.className = 'tab-close';
+    close.innerHTML = '✕';
+    close.addEventListener('click', e => { e.stopPropagation(); closeTab(activeDesk, i); });
+
+    el.appendChild(fav);
+    el.appendChild(title);
+    el.appendChild(close);
+    el.addEventListener('click', () => { setActiveTab(activeDesk, i); updateUrlBar(); });
+    strip.appendChild(el);
+  });
+
+  const activeEl = strip.querySelector('.tab.active');
+  if (activeEl) activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+
+// ═══════════════════════════════════════════
+// MOBILE SHEET RENDER
+// ═══════════════════════════════════════════
+function renderMobileSheet() {
+  const content = document.getElementById('sheet-content');
+  content.innerHTML = '';
+
+  desktops.forEach((desk, di) => {
+    const label = document.createElement('div');
+    label.className = `sheet-desk-label ${di === 0 ? 'd1' : 'd2'}`;
+    label.textContent = `Desktop ${di + 1}`;
+    content.appendChild(label);
+
+    desk.tabs.forEach((tab, ti) => {
+      const item = document.createElement('div');
+      item.className = `sheet-tab-item ${di === activeDesk && ti === desk.activeTab ? 'active' : ''}`;
+
+      const fav = document.createElement('div');
+      fav.className = 'sheet-tab-favicon';
+      if (tab.favicon) {
+        const img = document.createElement('img');
+        img.src = tab.favicon;
+        img.onerror = () => { fav.textContent = '🌐'; };
+        fav.appendChild(img);
+      } else {
+        fav.textContent = tab.url ? '🌐' : '✦';
+      }
+
+      const title = document.createElement('div');
+      title.className = 'sheet-tab-title';
+      title.textContent = tab.title || 'New Tab';
+
+      const close = document.createElement('button');
+      close.className = 'sheet-tab-close';
+      close.innerHTML = '✕';
+      close.addEventListener('click', e => { e.stopPropagation(); closeTab(di, ti); renderMobileSheet(); });
+
+      item.appendChild(fav);
+      item.appendChild(title);
+      item.appendChild(close);
+      item.addEventListener('click', () => {
+        if (di !== activeDesk) switchDesktop(di);
+        else { setActiveTab(di, ti); updateUrlBar(); }
+        closeTabsSheet();
+      });
+      content.appendChild(item);
+    });
+
+    const newBtn = document.createElement('div');
+    newBtn.className = 'sheet-new-tab';
+    newBtn.innerHTML = `<span style="font-size:16px">＋</span> New tab on Desktop ${di + 1}`;
+    newBtn.addEventListener('click', () => {
+      if (di !== activeDesk) switchDesktop(di);
+      createTab(di, null, 'New Tab', true);
+      closeTabsSheet();
+    });
+    content.appendChild(newBtn);
+  });
+
+  document.getElementById('mob-desk-label').textContent = `Desk ${activeDesk + 1}`;
+}
+
+// ═══════════════════════════════════════════
+// DESKTOP SWITCHING
+// ═══════════════════════════════════════════
+function switchDesktop(toIdx, direction = null, silent = false) {
+  if (toIdx === activeDesk && !silent) return;
+  const fromIdx = activeDesk;
+  const pill0 = document.getElementById('pill-d1');
+  const pill1 = document.getElementById('pill-d2');
+
+  const goRight = direction === 'right' || (direction === null && toIdx > fromIdx);
+
+  if (!silent) {
+    const fromEl = document.getElementById(`desktop-${fromIdx}`);
+    const toEl = document.getElementById(`desktop-${toIdx}`);
+
+    fromEl.classList.remove('active');
+    fromEl.classList.add(goRight ? 'slide-out-left' : 'slide-out-right');
+    toEl.style.display = 'flex';
+    toEl.classList.add(goRight ? 'slide-in-right' : 'slide-in-left');
+
+    setTimeout(() => {
+      fromEl.classList.remove('slide-out-left', 'slide-out-right');
+      fromEl.style.display = '';
+      toEl.classList.remove('slide-in-left', 'slide-in-right');
+      toEl.classList.add('active');
+    }, 260);
+  } else {
+    document.getElementById(`desktop-${fromIdx}`).classList.remove('active');
+    document.getElementById(`desktop-${toIdx}`).classList.add('active');
+  }
+
+  activeDesk = toIdx;
+  pill0.classList.toggle('active', toIdx === 0);
+  pill1.classList.toggle('active', toIdx === 1);
+  updateUrlBar();
+  renderTabStrip();
+  renderMobileSheet();
+  saveState();
+}
+
+// ═══════════════════════════════════════════
+// BACK / FORWARD / REFRESH
+// ═══════════════════════════════════════════
+function goBack() {
+  const tab = getActiveTab(activeDesk);
+  if (!tab) return;
+  // Use Scramjet Frame API for proxy tabs
+  if (tab.scramjetFrame) {
+    tab.scramjetFrame.back();
+    return;
+  }
+  if (tab.history && tab.historyIdx > 0) {
+    tab.historyIdx--;
+    const prevUrl = tab.history[tab.historyIdx];
+    loadUrlInTab(activeDesk, desktops[activeDesk].activeTab, prevUrl, tab.useProxy);
+  } else {
+    try { tab.iframeEl?.contentWindow?.history.back(); } catch(e) {}
+  }
+}
+function goForward() {
+  const tab = getActiveTab(activeDesk);
+  if (!tab) return;
+  // Use Scramjet Frame API for proxy tabs
+  if (tab.scramjetFrame) {
+    tab.scramjetFrame.forward();
+    return;
+  }
+  if (tab.history && tab.historyIdx < tab.history.length - 1) {
+    tab.historyIdx++;
+    const nextUrl = tab.history[tab.historyIdx];
+    loadUrlInTab(activeDesk, desktops[activeDesk].activeTab, nextUrl, tab.useProxy);
+  } else {
+    try { tab.iframeEl?.contentWindow?.history.forward(); } catch(e) {}
+  }
+}
+function refreshTab() {
+  const tab = getActiveTab(activeDesk);
+  if (!tab || !tab.url) return;
+  // Use Scramjet Frame API for proxy tabs
+  if (tab.scramjetFrame) {
+    startLoading();
+    tab.scramjetFrame.reload();
+    return;
+  }
+  if (tab.iframeEl) {
+    startLoading();
+    tab.iframeEl.src = tab.iframeEl.src;
+  }
+}
+
+// ═══════════════════════════════════════════
+// TABS SHEET (mobile)
+// ═══════════════════════════════════════════
+function openTabsSheet() {
+  renderMobileSheet();
+  document.getElementById('tabs-sheet').classList.add('open');
+}
+function closeTabsSheet() {
+  document.getElementById('tabs-sheet').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════
+// EVENT LISTENERS
+// ═══════════════════════════════════════════
+document.getElementById('url-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const url = normalizeUrl(e.target.value);
+    if (url) navigateTo(url);
+    e.target.blur();
+  }
+  if (e.key === 'Escape') { updateUrlBar(); e.target.blur(); }
+});
+document.getElementById('url-input').addEventListener('focus', function() { this.select(); });
+
+document.getElementById('new-tab-btn').addEventListener('click', () => createTab(activeDesk, null, 'New Tab', true));
+document.getElementById('newtab-btn2').addEventListener('click', () => createTab(activeDesk, null, 'New Tab', true));
+
+document.getElementById('pill-d1').addEventListener('click', () => switchDesktop(0, 'left'));
+document.getElementById('pill-d2').addEventListener('click', () => switchDesktop(1, 'right'));
+
+document.getElementById('back-btn').addEventListener('click', goBack);
+document.getElementById('fwd-btn').addEventListener('click', goForward);
+document.getElementById('refresh-btn').addEventListener('click', refreshTab);
+
+document.getElementById('mob-back').addEventListener('click', goBack);
+document.getElementById('mob-fwd').addEventListener('click', goForward);
+document.getElementById('mob-tabs').addEventListener('click', openTabsSheet);
+document.getElementById('mob-new').addEventListener('click', () => createTab(activeDesk, null, 'New Tab', true));
+document.getElementById('mob-desk').addEventListener('click', () => {
+  switchDesktop(activeDesk === 0 ? 1 : 0, activeDesk === 0 ? 'right' : 'left');
+});
+document.getElementById('sheet-close-btn').addEventListener('click', closeTabsSheet);
+document.getElementById('tabs-sheet').addEventListener('click', e => {
+  if (e.target === document.getElementById('tabs-sheet')) closeTabsSheet();
+});
+
+// ═══════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && e.key === 't') { e.preventDefault(); createTab(activeDesk, null, 'New Tab', true); return; }
+  if (ctrl && e.key === 'w') { e.preventDefault(); closeTab(activeDesk, desktops[activeDesk].activeTab); return; }
+  if (ctrl && e.key === 'r') { e.preventDefault(); refreshTab(); return; }
+  if (ctrl && e.key === 'l') { e.preventDefault(); document.getElementById('url-input').focus(); return; }
+  if (ctrl && e.key === 'Tab') {
+    e.preventDefault();
+    const desk = desktops[activeDesk];
+    let next = desk.activeTab + (e.shiftKey ? -1 : 1);
+    if (next < 0) next = desk.tabs.length - 1;
+    if (next >= desk.tabs.length) next = 0;
+    setActiveTab(activeDesk, next);
+    updateUrlBar();
+    return;
+  }
+  if (e.altKey && e.key === 'ArrowLeft' && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); goBack(); return; }
+  if (e.altKey && e.key === 'ArrowRight' && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); goForward(); return; }
+  if (ctrl && e.altKey && e.shiftKey && e.key === 'ArrowLeft') { e.preventDefault(); switchDesktop(0, 'left'); return; }
+  if (ctrl && e.altKey && e.shiftKey && e.key === 'ArrowRight') { e.preventDefault(); switchDesktop(1, 'right'); return; }
+  if (ctrl && e.key >= '1' && e.key <= '9') {
+    e.preventDefault();
+    const idx = parseInt(e.key) - 1;
+    if (idx < desktops[activeDesk].tabs.length) { setActiveTab(activeDesk, idx); updateUrlBar(); }
+    return;
+  }
+});
+
+// ═══════════════════════════════════════════
+// TOUCH GESTURES
+// ═══════════════════════════════════════════
+let touchStartX = 0, touchStartY = 0, touchStartTime = 0, touchCount = 0;
+
+document.addEventListener('touchstart', e => {
+  touchCount = e.touches.length;
+  if (e.touches.length >= 1) {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    touchStartTime = Date.now();
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', e => {
+  const elapsed = Date.now() - touchStartTime;
+  const dx = (e.changedTouches[0]?.clientX || touchStartX) - touchStartX;
+  const dy = (e.changedTouches[0]?.clientY || touchStartY) - touchStartY;
+  if (touchCount >= 3 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5 && elapsed < 400) {
+    if (dx < 0) switchDesktop(1, 'right');
+    else switchDesktop(0, 'left');
+  }
+}, { passive: true });
+
+// ═══════════════════════════════════════════
+// NEW TAB INTERCEPT
+// ═══════════════════════════════════════════
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'meridian_newtab') openInNewTab(e.data.url);
+});
+
+// ═══════════════════════════════════════════
+// THEME
+// ═══════════════════════════════════════════
+function applyTheme(theme) {
+  document.body.classList.remove('dark', 'light');
+  document.body.classList.add(theme);
+  localStorage.setItem('nab_theme', theme);
+  document.getElementById('theme-dark').classList.toggle('active', theme === 'dark');
+  document.getElementById('theme-light').classList.toggle('active', theme === 'light');
+}
+
+const savedTheme = localStorage.getItem('nab_theme') || 'dark';
+applyTheme(savedTheme);
+document.getElementById('theme-dark').addEventListener('click', () => applyTheme('dark'));
+document.getElementById('theme-light').addEventListener('click', () => applyTheme('light'));
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+loadState();
+</script>
+</body>
+</html>
