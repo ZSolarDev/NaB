@@ -780,7 +780,9 @@ if (UV_BASE && 'serviceWorker' in navigator) {
       reg.addEventListener('updatefound', () => {
         const newSW = reg.installing;
         newSW?.addEventListener('statechange', () => {
-          if (newSW.state === 'activated') sendToken(newSW);
+          if (newSW.state === 'installed') {
+            newSW.postMessage({ type: 'SKIP_WAITING' });
+          }
         });
       });
       navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -877,14 +879,15 @@ if (UV_BASE) {
 function getUVUrl(url) {
   if (!UV_BASE) return null;
   try {
-    return UV_BASE + __uv$config.encodeUrl(url);
-  } catch {
-    // Fallback if config not loaded yet — use xor manually
-    const encoded = encodeURIComponent(
-      url.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 2)).join('')
-    );
-    return UV_BASE + encoded;
-  }
+    if (typeof __uv$config !== 'undefined' && __uv$config.encodeUrl) {
+      return UV_BASE + __uv$config.encodeUrl(url);
+    }
+  } catch {}
+  // Still loading — encode manually with xor
+  const encoded = encodeURIComponent(
+    url.split('').map(c => String.fromCharCode(c.charCodeAt(0) ^ 2)).join('')
+  );
+  return UV_BASE + encoded;
 }
 
 // Decode a UV-proxied URL back to the original
