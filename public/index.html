@@ -1088,8 +1088,8 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
     // Scramjet proxied: read decoded URL from the ScramjetFrame object
     if (!currentUrl && tab.scramjetFrame) {
       try {
-        const decoded = tab.scramjetFrame.url?.href;
-        if (decoded && decoded !== 'about:blank') currentUrl = decoded;
+        const s = iframe.src;
+        if (s && s !== 'about:blank' && !isProxiedUrl(s)) currentUrl = s;
       } catch {}
     }
 
