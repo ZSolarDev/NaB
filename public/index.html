@@ -1222,19 +1222,28 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       }, 10000);
       setTimeout(() => { if (isActive()) stopLoading(); }, 12000);
 
-      // Listen for proxified URL changes (in-page navigation)
+      // contextInit fires when Scramjet fully initializes inside the proxied page —
+      // this is the definitive "page is ready" signal for the initial load.
+      sjFrame.addEventListener('contextInit', () => {
+        if (loadAttempts[tab.id] !== attemptId) return;
+        if (!settled) {
+          settled = true;
+          clearTimeout(proxyTimeout);
+          onSuccess(true);
+        }
+      });
+
+      // urlchange fires on URL changes (including history API pushState).
+      // We use it only for in-page navigations after the initial load is settled.
+      // Note: urlchange can fire on sjFrame.go() before the page renders,
+      // so we never treat it as the initial load signal.
       sjFrame.addEventListener('urlchange', (e) => {
         if (loadAttempts[tab.id] !== attemptId) return;
         const newUrl = e.url || (sjFrame.url?.href);
         if (!newUrl || newUrl === 'about:blank') return;
 
-        if (!settled) {
-          // First urlchange = page loaded successfully
-          settled = true;
-          clearTimeout(proxyTimeout);
-          onSuccess(true);
-        } else {
-          // Subsequent urlchange = in-page navigation
+        if (settled) {
+          // In-page navigation after load
           if (newUrl === tab.url) return;
           tab.url = newUrl;
           tab.favicon = getFaviconUrl(newUrl);
@@ -1251,20 +1260,15 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
         }
       });
 
-      // Also handle iframe load events for title/favicon updates after navigation.
-      // NOTE: For SJ tabs, iframe 'load' fires on the SW shell — NOT when the proxied
-      // page finishes rendering. Never call onSuccess here; only urlchange is reliable.
+      // iframe 'load' fires on the SW shell, not the real page — only use it
+      // for title updates after contextInit has already settled the tab.
       iframe.addEventListener('load', () => {
-        if (loadAttempts[tab.id] !== attemptId) return;
-        // Only update title/URL bar after urlchange has already settled the load
-        if (settled) {
-          try {
-            const t = iframe.contentDocument?.title;
-            if (t && t !== tab.title) { tab.title = t; renderTabStrip(); saveState(); }
-          } catch {}
-          if (isActiveTab(tab)) updateUrlBar();
-        }
-        // If not settled: do nothing — wait for urlchange to fire
+        if (loadAttempts[tab.id] !== attemptId || !settled) return;
+        try {
+          const t = iframe.contentDocument?.title;
+          if (t && t !== tab.title) { tab.title = t; renderTabStrip(); saveState(); }
+        } catch {}
+        if (isActiveTab(tab)) updateUrlBar();
       });
 
       // Navigate the frame to the target URL
