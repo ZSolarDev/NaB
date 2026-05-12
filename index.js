@@ -71,6 +71,30 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.url === '/debug-files') {
+  const { readdirSync } = await import('fs');
+  const dirs = [
+    'node_modules/@mercuryworkshop/bare-mux',
+    'node_modules/@mercuryworkshop/bare-mux/dist',
+    'node_modules/@mercuryworkshop/scramjet',
+    'node_modules/@mercuryworkshop/scramjet/dist',
+    'public/baremux',
+    'public/scram',
+  ];
+  let out = '';
+  for (const d of dirs) {
+    try {
+      const files = readdirSync(join(__dirname, d));
+      out += `\n${d}:\n  ${files.join('\n  ')}`;
+    } catch (e) {
+      out += `\n${d}: ERROR - ${e.message}`;
+    }
+  }
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end(out);
+  return;
+  }
+
   // Serve static files from public/
   const urlPath = req.url.split("?")[0]; // strip query string
   const filePath = join(__dirname, "public", urlPath === "/" ? "index.html" : urlPath);
