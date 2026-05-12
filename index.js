@@ -71,6 +71,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.url === '/baremux/baremux.js') {
+  res.writeHead(200, { 'Content-Type': 'application/javascript', 'Access-Control-Allow-Origin': '*' });
+  res.end(`(async () => { const m = await import('/baremux/index.mjs'); window.BareMux = m; })();`);
+  return;
+  }
+
   if (req.url === '/debug-files') {
   const { readdirSync } = await import('fs');
   const dirs = [
