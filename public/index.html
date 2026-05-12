@@ -1074,18 +1074,21 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       updateUrlBar();
     }
     if (!usedProxy) {
-      fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(url)}`)
-        .then(r => r.json())
-        .then(data => {
-          if (data.finalUrl && data.finalUrl !== tab.url) {
-            tab.url = data.finalUrl;
-            tab.favicon = getFaviconUrl(data.finalUrl);
-            if (isActiveTab(tab)) updateUrlBar();
-            renderTabStrip();
-            saveState();
-          }
-        }).catch(() => {});
-    }
+  console.log('[NAB] fetching finalUrl for:', url);
+  fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(url)}`)
+    .then(r => r.json())
+    .then(data => {
+      console.log('[NAB] check response:', data);
+      if (data.finalUrl && data.finalUrl !== tab.url) {
+        tab.url = data.finalUrl;
+        tab.favicon = getFaviconUrl(data.finalUrl);
+        tab.title = getTabTitleFromIframe(tab.iframeEl) || getDomainTitle(data.finalUrl);
+        if (isActiveTab(tab)) updateUrlBar();
+        renderTabStrip();
+        saveState();
+      }
+    }).catch(e => console.log('[NAB] check failed:', e));
+}
     renderTabStrip();
     renderMobileSheet();
     saveState();
