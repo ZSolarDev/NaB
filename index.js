@@ -4,7 +4,7 @@ import { createReadStream, existsSync } from "fs";
 import { join, extname } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { wispUpgradeHandler } from "wisp-server-node";
+import { server as wisp } from "@mercuryworkshop/wisp-js/server";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -72,6 +72,58 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Shim for baremux.js (not shipped in bare-mux v2 dist)
+  if (req.url === '/baremux/baremux.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript', 'Access-Control-Allow-Origin': '*' });
+    res.end(`(async () => { const m = await import('/baremux/index.mjs'); window.BareMux = m; })();`);
+    return;
+  }
+
+  // Serve static files from public/
+  const urlPath = req.url.split("?")[0];
+  const filePath = join(__dirname, "public", urlPath === "/" ? "index.html" : urlPath);
+
+  if (existsSync(filePath)) {
+    const ext = extname(filePath);
+    res.writeHead(200, {
+      "Content-Type": mimeTypes[ext] || "text/plain",
+      "Access-Control-Allow-Origin": "*",
+      "Service-Worker-Allowed": "/",
+    });
+    createReadStream(filePath).pipe(res);
+    return;
+  }
+
+  res.writeHead(404, { "Content-Type": "text/plain" });
+  res.end("Not found");
+});
+
+server.on("upgrade", (req, socket, head) => {
+  if (req.url.startsWith("/wisp/")) {
+    wisp.routeRequest(req, socket, head);
+  } else if (bare.shouldRoute(socket)) {
+    bare.routeUpgrade(req, socket, head);
+  } else {
+    socket.destroy();
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`NAB server running on port ${PORT}`);
+});
+        /frame-ancestors\s+['"]\s*none\s*['"]|frame-ancestors\s+(?!'self')[^;]+/i.test(csp) &&
+        !/frame-ancestors\s+\*/i.test(csp);
+      const frameable = !xfoDenied && !cspDenied;
+      res.writeHead(200, corsHeaders);
+      res.end(JSON.stringify({ frameable, xfo, status: response.status }));
+    } catch (e) {
+      res.writeHead(200, corsHeaders);
+      res.end(JSON.stringify({ frameable: false, error: e.message }));
+    }
+    return;
+  }
+
   if (req.url === '/baremux/baremux.js') {
   res.writeHead(200, { 'Content-Type': 'application/javascript', 'Access-Control-Allow-Origin': '*' });
   res.end(`(async () => { const m = await import('/baremux/index.mjs'); window.BareMux = m; })();`);
@@ -122,9 +174,10 @@ const server = http.createServer(async (req, res) => {
   res.end("Not found");
 });
 
+// then in your upgrade handler:
 server.on("upgrade", (req, socket, head) => {
   if (req.url.startsWith("/wisp/")) {
-    wispUpgradeHandler(req, socket, head);
+    wisp.routeRequest(req, socket, head);
   } else if (bare.shouldRoute(req)) {
     bare.routeUpgrade(req, socket, head);
   } else {
