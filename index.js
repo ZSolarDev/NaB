@@ -4,6 +4,7 @@ import { createReadStream, existsSync } from "fs";
 import { join, extname } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { wispUpgradeHandler } from "wisp-server-node";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -121,9 +122,10 @@ const server = http.createServer(async (req, res) => {
   res.end("Not found");
 });
 
-// Handle bare server WebSocket upgrades
 server.on("upgrade", (req, socket, head) => {
-  if (bare.shouldRoute(req)) {
+  if (req.url.startsWith("/wisp/")) {
+    wispUpgradeHandler(req, socket, head);
+  } else if (bare.shouldRoute(req)) {
     bare.routeUpgrade(req, socket, head);
   } else {
     socket.destroy();
