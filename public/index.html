@@ -730,14 +730,28 @@ function onScramjetReady(cb) {
   scramjetReadyCallbacks.push(cb);
 }
 
+function _sjDebug(msg, color) {
+  let el = document.getElementById('_sj_debug');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_sj_debug';
+    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;padding:8px 12px;z-index:99999;font-family:monospace;font-size:11px;color:#fff;word-break:break-all';
+    document.body ? document.body.appendChild(el) : document.addEventListener('DOMContentLoaded', () => document.body.appendChild(el));
+  }
+  el.style.background = color === 'green' ? '#1a7a1a' : color === 'red' ? '#aa0000' : '#333';
+  el.textContent = '[SJ] ' + msg;
+}
+
 if (PROXY_ENABLED && 'serviceWorker' in navigator) {
-  // Load BareMux then Scramjet in order
+  _sjDebug('Loading BareMux...');
   const baremuxScript = document.createElement('script');
   baremuxScript.src = SERVER_BASE + '/baremux/baremux.js';
   baremuxScript.onload = () => {
+    _sjDebug('BareMux OK, loading scramjet.all.js...');
     const scramjetScript = document.createElement('script');
     scramjetScript.src = SERVER_BASE + '/scram/scramjet.all.js';
     scramjetScript.onload = async () => {
+      _sjDebug('scramjet.all.js OK, calling init...');
       try {
         const { ScramjetController } = $scramjetLoadController();
         scramjetController = new ScramjetController({
@@ -749,15 +763,16 @@ if (PROXY_ENABLED && 'serviceWorker' in navigator) {
           }
         });
         await scramjetController.init();
+        _sjDebug('Controller init OK, registering SW...');
 
-        // Register service worker
         await navigator.serviceWorker.register(SERVER_BASE + '/sw.js', {
           scope: '/',
           updateViaCache: 'none',
         });
+        _sjDebug('SW registered, waiting for ready...');
         await navigator.serviceWorker.ready;
+        _sjDebug('SW ready, setting transport...');
 
-        // Set bare transport via BareMux
         const connection = new BareMux.BareMuxConnection(SERVER_BASE + '/baremux/worker.js');
         await connection.setTransport(SERVER_BASE + '/baremux/index.mjs', [SERVER_BASE + '/bare/']);
 
@@ -765,22 +780,20 @@ if (PROXY_ENABLED && 'serviceWorker' in navigator) {
         scramjetReadyCallbacks.forEach(cb => cb());
         scramjetReadyCallbacks.length = 0;
         console.log('[NAB] Scramjet ready');
-        document.body.insertAdjacentHTML('beforeend',
-          `<div id="_sj_debug" style="position:fixed;bottom:0;left:0;right:0;background:#1a7a1a;color:#fff;padding:8px 12px;z-index:99999;font-family:monospace;font-size:12px">SJ READY</div>`
-        );
-        setTimeout(() => document.getElementById('_sj_debug')?.remove(), 4000);
+        _sjDebug('READY', 'green');
+        setTimeout(() => document.getElementById('_sj_debug')?.remove(), 5000);
       } catch (e) {
         console.warn('[NAB] Scramjet init failed:', e);
-        document.body.insertAdjacentHTML('beforeend',
-          `<div id="_sj_debug" style="position:fixed;bottom:0;left:0;right:0;background:#b00;color:#fff;padding:8px 12px;z-index:99999;font-family:monospace;font-size:12px">SJ INIT FAILED: ${e?.message || e}</div>`
-        );
+        _sjDebug('INIT FAILED: ' + (e?.message || String(e)), 'red');
       }
     };
-    scramjetScript.onerror = () => console.warn('[NAB] Failed to load scramjet.all.js');
+    scramjetScript.onerror = () => _sjDebug('FAILED to load scramjet.all.js', 'red');
     document.head.appendChild(scramjetScript);
   };
-  baremuxScript.onerror = () => console.warn('[NAB] Failed to load baremux.js');
+  baremuxScript.onerror = () => _sjDebug('FAILED to load baremux.js', 'red');
   document.head.appendChild(baremuxScript);
+} else {
+  _sjDebug('PROXY_ENABLED=false or no serviceWorker support', 'red');
 }
 
 // ═══════════════════════════════════════════
