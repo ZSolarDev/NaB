@@ -64,7 +64,7 @@ const server = http.createServer(async (req, res) => {
         !/frame-ancestors\s+\*/i.test(csp);
       const frameable = !xfoDenied && !cspDenied;
       res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ frameable, xfo, status: response.status }));
+      res.end(JSON.stringify({ frameable, xfo, status: response.status, finalUrl: response.url }));
     } catch (e) {
       res.writeHead(200, corsHeaders);
       res.end(JSON.stringify({ frameable: false, error: e.message }));

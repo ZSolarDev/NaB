@@ -1073,6 +1073,19 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
       usedProxy ? showProxyBadge() : showDirectBadge();
       updateUrlBar();
     }
+    if (!usedProxy) {
+      fetch(`${SERVER_BASE}/check/?url=${encodeURIComponent(url)}`)
+        .then(r => r.json())
+        .then(data => {
+          if (data.finalUrl && data.finalUrl !== tab.url) {
+            tab.url = data.finalUrl;
+            tab.favicon = getFaviconUrl(data.finalUrl);
+            if (isActiveTab(tab)) updateUrlBar();
+            renderTabStrip();
+            saveState();
+          }
+        }).catch(() => {});
+    }
     renderTabStrip();
     renderMobileSheet();
     saveState();
