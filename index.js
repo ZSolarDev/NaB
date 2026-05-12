@@ -79,6 +79,40 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.url.startsWith('/epoxy/')) {
+  const epoxyFile = req.url.replace('/epoxy/', '');
+  const epoxyPath = join(__dirname, 'node_modules/@mercuryworkshop/epoxy-transport/dist', epoxyFile);
+  if (existsSync(epoxyPath)) {
+    const ext = extname(epoxyPath);
+    res.writeHead(200, {
+      'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+      'Access-Control-Allow-Origin': '*',
+    });
+    createReadStream(epoxyPath).pipe(res);
+    return;
+  }
+  }
+
+  if (req.url === '/debug-files') {
+  const { readdirSync } = await import('fs');
+  const dirs = [
+    'node_modules/@mercuryworkshop/epoxy-transport',
+    'node_modules/@mercuryworkshop/epoxy-transport/dist',
+  ];
+  let out = '';
+  for (const d of dirs) {
+    try {
+      const files = readdirSync(join(__dirname, d));
+      out += `\n${d}:\n  ${files.join('\n  ')}`;
+    } catch (e) {
+      out += `\n${d}: ERROR - ${e.message}`;
+    }
+  }
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end(out);
+  return;
+  }
+
   // Serve static files from public/
   const urlPath = req.url.split("?")[0];
   const filePath = join(__dirname, "public", urlPath === "/" ? "index.html" : urlPath);
