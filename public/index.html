@@ -770,7 +770,7 @@ if (UV_BASE && 'serviceWorker' in navigator) {
     try {
       // UV_BASE is e.g. 'https://your-proxy.com/uv/service/'
       // The SW script lives one level up at /uv/uv.sw.js
-      const swUrl = UV_BASE.replace(/\/service\/$/, '/uv.sw.js');
+      const swUrl = UV_BASE.replace(/\/service\/$/, '/uv.sw.entry.js');
       const reg = await navigator.serviceWorker.register(swUrl, {
         scope: UV_BASE.replace(/\/service\/$/, '/'),
       });
