@@ -904,7 +904,7 @@ function getLockState(url) {
 // ═══════════════════════════════════════════
 // TAB MANAGEMENT
 // ═══════════════════════════════════════════
-function createTab(deskIdx, url, title, activate = true, forceId = null, forceProxy = false) {
+function createTab(deskIdx, url, title, activate = true, forceId = null, forceProxy = true) {
   const id = forceId !== null ? forceId : ++tabIdCounter;
   const desk = desktops[deskIdx];
 
