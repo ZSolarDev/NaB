@@ -1251,22 +1251,20 @@ function loadUrlInTab(deskIdx, tabIdx, url, forceProxy = false) {
         }
       });
 
-      // Also handle iframe load events for title/favicon updates after navigation
+      // Also handle iframe load events for title/favicon updates after navigation.
+      // NOTE: For SJ tabs, iframe 'load' fires on the SW shell — NOT when the proxied
+      // page finishes rendering. Never call onSuccess here; only urlchange is reliable.
       iframe.addEventListener('load', () => {
         if (loadAttempts[tab.id] !== attemptId) return;
-        if (!settled) {
-          // If no urlchange fired yet but iframe loaded (e.g. same-origin proxy page)
-          settled = true;
-          clearTimeout(proxyTimeout);
-          onSuccess(true);
-        } else {
-          // In-page load: update title
+        // Only update title/URL bar after urlchange has already settled the load
+        if (settled) {
           try {
             const t = iframe.contentDocument?.title;
             if (t && t !== tab.title) { tab.title = t; renderTabStrip(); saveState(); }
           } catch {}
           if (isActiveTab(tab)) updateUrlBar();
         }
+        // If not settled: do nothing — wait for urlchange to fire
       });
 
       // Navigate the frame to the target URL
