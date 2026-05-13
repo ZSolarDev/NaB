@@ -2,6 +2,8 @@
 
 there's your free deployment of NAB..
 
+I highkey vibe coded 95% of ts lmfao
+
 nab stands for Not a Browser
 
 as you can tell, i cant name anything properly for the life of me
