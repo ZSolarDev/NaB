@@ -1960,7 +1960,7 @@ document.addEventListener('touchend', e => {
 
 // ---- NEW TAB INTERCEPT ----
 window.addEventListener('message', e => {
-	if (e.data && e.data.type === 'meridian_newtab') openInNewTab(e.data.url);
+	if (e.data && e.data.type === 'nab_newtab') openInNewTab(e.data.url);
 });
 
 // ---- INIT ----
