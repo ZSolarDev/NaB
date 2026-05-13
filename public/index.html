@@ -1127,13 +1127,28 @@ if ('serviceWorker' in navigator) {
 			try {
 				const { ScramjetController } = $scramjetLoadController();
 				scramjetController = new ScramjetController({
-					prefix: '/scram/service/',
-					files: {
-						wasm: SERVER_BASE + '/scram/scramjet.wasm.wasm',
-						all: SERVER_BASE + '/scram/scramjet.all.js',
-						sync: SERVER_BASE + '/scram/scramjet.sync.js',
-					}
-				});
+                    prefix: '/scram/service/',
+                    files: {
+                        wasm: SERVER_BASE + '/scram/scramjet.wasm.wasm',
+                        all: SERVER_BASE + '/scram/scramjet.all.js',
+                        sync: SERVER_BASE + '/scram/scramjet.sync.js',
+                    },
+                    inject: [
+                        {
+                            host: /.*/,
+                            html: `<script>
+                                const __origOpen = window.open;
+                                window.open = function(url, target, features) {
+                                    if (url && url !== 'about:blank' && target !== '_self') {
+                                        window.parent.postMessage({ type: 'nab_newtab', url: url }, '*');
+                                        return { closed: false, focus: () => {}, blur: () => {}, postMessage: () => {} };
+                                    }
+                                    return __origOpen.apply(this, arguments);
+                                };
+                            <\/script>`
+                        }
+                    ]
+                });
 				await scramjetController.init();
 				await navigator.serviceWorker.register(SERVER_BASE + '/sw.js', {
 					scope: '/',
@@ -1958,9 +1973,14 @@ document.addEventListener('touchend', e => {
 	}
 }, { passive: true });
 
-// ---- NEW TAB INTERCEPT ----
+// overlay intercept 
 window.addEventListener('message', e => {
-	if (e.data && e.data.type === 'nab_newtab') openInNewTab(e.data.url);
+    if (e.data?.type === 'nab_overlay') {
+        onScramjetReady(() => {
+            const proxied = '/scram/service/' + scramjetController.codec.encode(e.data.url);
+            openInOverlay(proxied);
+        });
+    }
 });
 
 // ---- INIT ----
@@ -1970,6 +1990,58 @@ document.getElementById('theme-dark').addEventListener('click', () => applyTheme
 document.getElementById('theme-light').addEventListener('click', () => applyTheme('light'));
 
 loadState();
+
+
+// ---- POPUP / OAUTH / RECAPTCHA INTERCEPT ----
+
+function openInOverlay(url) {
+	let overlay = document.getElementById('__nab_overlay');
+	if (!overlay) {
+		overlay = document.createElement('div');
+		overlay.id = '__nab_overlay';
+		overlay.style.cssText = `
+			position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.75);
+			display:flex;align-items:center;justify-content:center;
+		`;
+		overlay.innerHTML = `
+			<div style="position:relative;width:90vw;height:90vh;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+				<button id="__nab_overlay_close" style="position:absolute;top:10px;right:14px;z-index:1;font-size:20px;background:rgba(0,0,0,0.15);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;color:#fff;line-height:1;">✕</button>
+				<iframe id="__nab_overlay_frame" style="width:100%;height:100%;border:none;" allow="*" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
+			</div>
+		`;
+		document.body.appendChild(overlay);
+		document.getElementById('__nab_overlay_close').onclick = () => overlay.remove();
+		overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+	}
+	document.getElementById('__nab_overlay_frame').src = url;
+	overlay.style.display = 'flex';
+}
+
+// Intercept window.open() calls that escape the proxy
+const _origOpen = window.open;
+window.open = function(url, target, features) {
+	if (url && url !== 'about:blank' && target !== '_self') {
+		onScramjetReady(() => {
+			const proxied = '/scram/service/' + scramjetController.codec.encode(url);
+			openInOverlay(proxied);
+		});
+		return { closed: false, focus: () => {}, blur: () => {}, postMessage: () => {}, location: { href: url } };
+	}
+	return _origOpen.apply(this, arguments);
+};
+
+// Intercept target="_blank" clicks on the host page
+document.addEventListener('click', e => {
+	const a = e.target.closest('a[target="_blank"], a[target="_new"]');
+	if (a?.href) {
+		e.preventDefault();
+		onScramjetReady(() => {
+			const proxied = '/scram/service/' + scramjetController.codec.encode(a.href);
+			openInOverlay(proxied);
+		});
+	}
+}, true);
+	
 </script>
 </body>
 </html>
