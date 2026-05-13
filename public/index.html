@@ -1649,35 +1649,17 @@ function switchDesktop(toIdx, direction = null, silent = false) {
 function goBack() {
   const tab = getActiveTab(activeDesk);
   if (!tab) return;
-  // Use Scramjet Frame API for proxy tabs
-  if (tab.scramjetFrame) {
-    tab.scramjetFrame.back();
-    return;
-  }
-  if (tab.history && tab.historyIdx > 0) {
-    tab.historyIdx--;
-    const prevUrl = tab.history[tab.historyIdx];
-    loadUrlInTab(activeDesk, desktops[activeDesk].activeTab, prevUrl, tab.useProxy);
-  } else {
-    try { tab.iframeEl?.contentWindow?.history.back(); } catch(e) {}
-  }
+  if (tab.scramjetFrame) { tab.scramjetFrame.back(); return; }
+  try { tab.iframeEl?.contentWindow?.history.back(); } catch(e) {}
 }
+
 function goForward() {
   const tab = getActiveTab(activeDesk);
   if (!tab) return;
-  // Use Scramjet Frame API for proxy tabs
-  if (tab.scramjetFrame) {
-    tab.scramjetFrame.forward();
-    return;
-  }
-  if (tab.history && tab.historyIdx < tab.history.length - 1) {
-    tab.historyIdx++;
-    const nextUrl = tab.history[tab.historyIdx];
-    loadUrlInTab(activeDesk, desktops[activeDesk].activeTab, nextUrl, tab.useProxy);
-  } else {
-    try { tab.iframeEl?.contentWindow?.history.forward(); } catch(e) {}
-  }
+  if (tab.scramjetFrame) { tab.scramjetFrame.forward(); return; }
+  try { tab.iframeEl?.contentWindow?.history.forward(); } catch(e) {}
 }
+
 function refreshTab() {
   const tab = getActiveTab(activeDesk);
   if (!tab || !tab.url) return;
