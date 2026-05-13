@@ -1589,7 +1589,7 @@ function renderTabStrip() {
 
 		const close = document.createElement('button');
 		close.className = 'tab-close';
-		close.textContent = 'x';
+		close.textContent = '✕';
 		close.addEventListener('click', e => { e.stopPropagation(); closeTab(activeDesk, i); });
 
 		el.appendChild(fav);
@@ -1635,7 +1635,7 @@ function renderMobileSheet() {
 
 			const close = document.createElement('button');
 			close.className = 'sheet-tab-close';
-			close.textContent = 'x';
+			close.textContent = '✕';
 			close.addEventListener('click', e => { e.stopPropagation(); closeTab(di, ti); renderMobileSheet(); });
 
 			item.appendChild(fav);
