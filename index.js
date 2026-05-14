@@ -54,7 +54,7 @@ const server = http.createServer(async (req, res) => {
         method: "HEAD",
         redirect: "follow",
         signal: AbortSignal.timeout(5000),
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; NAB/1.0)" },
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; NaB/1.0)" },
       });
       const xfo = response.headers.get("x-frame-options") || "";
       const csp = response.headers.get("content-security-policy") || "";
@@ -144,5 +144,5 @@ server.on("upgrade", (req, socket, head) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`NAB server running on port ${PORT}`);
+  console.log(`NaB server running on port ${PORT}`);
 });

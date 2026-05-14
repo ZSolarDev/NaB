@@ -28,7 +28,7 @@
   if (!targetUrl) {
     document.body.innerHTML = '<p style="padding:20px;font-family:sans-serif;color:#666">No URL provided.</p>';
   } else {
-    // Tell NAB we're starting to load
+    // Tell NaB we're starting to load
     window.parent.postMessage({ type: 'nab_relay', event: 'loading', url: targetUrl }, '*');
 
     inner.onload = () => {
