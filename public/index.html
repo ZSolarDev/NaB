@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-	<title>NAB</title>
+	<title>NaB</title>
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
 	<style>
@@ -1127,28 +1127,13 @@ if ('serviceWorker' in navigator) {
 			try {
 				const { ScramjetController } = $scramjetLoadController();
 				scramjetController = new ScramjetController({
-                    prefix: '/scram/service/',
-                    files: {
-                        wasm: SERVER_BASE + '/scram/scramjet.wasm.wasm',
-                        all: SERVER_BASE + '/scram/scramjet.all.js',
-                        sync: SERVER_BASE + '/scram/scramjet.sync.js',
-                    },
-                    inject: [
-                        {
-                            host: /.*/,
-                            html: `<script>
-                                const __origOpen = window.open;
-                                window.open = function(url, target, features) {
-                                    if (url && url !== 'about:blank' && target !== '_self') {
-                                        window.parent.postMessage({ type: 'nab_newtab', url: url }, '*');
-                                        return { closed: false, focus: () => {}, blur: () => {}, postMessage: () => {} };
-                                    }
-                                    return __origOpen.apply(this, arguments);
-                                };
-                            <\/script>`
-                        }
-                    ]
-                });
+					prefix: '/scram/service/',
+					files: {
+						wasm: '/scram/scramjet.wasm.wasm',
+						all: '/scram/scramjet.all.js',
+						sync: '/scram/scramjet.sync.js',
+					}
+				});
 				await scramjetController.init();
 				await navigator.serviceWorker.register(SERVER_BASE + '/sw.js', {
 					scope: '/',
@@ -1482,7 +1467,7 @@ function renderNewTabPage(pageEl, deskIdx) {
 
 	const logo = document.createElement('div');
 	logo.className = 'newtab-logo';
-	logo.textContent = 'NAB';
+	logo.textContent = 'NaB';
 
 	const searchWrap = document.createElement('div');
 	searchWrap.className = 'newtab-search';
